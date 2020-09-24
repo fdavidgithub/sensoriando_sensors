@@ -10,8 +10,10 @@
 
 /*
  * For the I²C bus
- * SDA: Data line, default values (usually GPIO21 for ESP12 and GPIO0 for ESP1)
- * SCL: Clock line, default values (usually GPIO22 for ESP12 and GPIO2 for ESP1)
+ *                  | Arduino UNO   | Arduino MEGA  | ESP-12E    | ESP-01 
+ *-----------------------------------------------------------------------
+ * SDA: Data line   | A4            | 22            | GPIO21    | GPIO0 
+ * SCL: Clock line  | A5            | 21            | GPIO22    | GPIO2
  */
 #define GPIO_SDA     SDA
 #define GPIO_SCL     SCL
