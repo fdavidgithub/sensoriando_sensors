@@ -4,6 +4,7 @@
 #include <sensoriando.h>
 #include <SimpleEspNowConnection.h>
 #include "src/gpio.h"
+#include "src/messages.h"
 
 
 /*
@@ -216,8 +217,8 @@ void readSensor()
 
 void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
 {
-  Serial.print("Anything arrive from ");Serial.println((char *)ad);
-  Serial.println((char *)message);
+    Serial.print("Anything arrive from ");Serial.println((char *)ad);
+    Serial.println((char *)message);
 }
 
  
