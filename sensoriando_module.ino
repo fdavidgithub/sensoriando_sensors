@@ -26,7 +26,10 @@
  * MACROS
  */
 #define DEBUG 
-#define MODULE 0x01
+#define MODULE  0x01
+
+#define UPDATEELAPSED   1000
+#define DEBOUNCE        300
 
 #define NOSENSOR    0x00    //Random values
 #define WEATHER     0x01    //Temperature and humidity of air
@@ -44,7 +47,7 @@
  * GlobalVariable
  */
 SimpleEspNowConnection SimpleEspConnection(SimpleEspNowRole::CLIENT);
-static SensoriandoSensorDatum *datum;
+static SensoriandoSensorDatum datum;
 
 String ServerAddress;
 int CounterSent=0;
@@ -64,6 +67,7 @@ bool writeConfig();
 void OnNewGatewayAddress(uint8_t *, String);
 int readSensor(SensoriandoSensorDatum *);
 void OnMessage(uint8_t*, const uint8_t*, size_t);
+int RandomSensor(SensoriandoSensorDatum *);
 
 
 /*
@@ -98,23 +102,27 @@ Serial.print("Client Address: ");Serial.println(WiFi.macAddress());
     espnow_init();
 
     #if MODULE == WEATHER
-        if ( ! weather_init(datum) ) {
+        if ( ! weather_init(&datum) ) {
             ESP.reset();
         }
     #else
-        datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
-
-        if ( datum == NULL ) {
+        if ( ! RandomSensor(&datum) ) {
             ESP.reset();
         }
     #endif
+
+#ifdef DEBUG
+Serial.println("Waiting for sensor");
+#endif
+
 }
 
 void loop()
 {
     int i;
-
+    int sensors;
     SimpleEspConnection.loop();
+    static long updateelapsed=millis();
 
     if ( digitalRead(GPIO_PAIR) ) {
 
@@ -122,18 +130,25 @@ void loop()
 Serial.println("Pairing started...");
 #endif
 
-        delay(1000);
+        delay(DEBOUNCE);
         SimpleEspConnection.startPairing(120);
     }
   
-    if ( Paired ) {
+    if ( Paired && (millis()-updateelapsed >= UPDATEELAPSED) ) {
+        updateelapsed=millis();
+        sensors = readSensor(&datum);
 
 #ifdef DEBUG
-Serial.println("Sending data...");
+Serial.printf("[%d] Sending data...\n", sensors);
 #endif
 
-        for (i=0; i<readSensor(datum); i++) {
-            if ( SimpleEspConnection.sendMessage(((uint8_t *)datum)+i, sizeof(SensoriandoSensorDatum)) ) {
+        for (i=0; i<sensors; i++) {
+#ifdef DEBUG
+Serial.print("ptr ");Serial.println((int)&((&datum)[i]));
+Serial.printf("id %d | value %f\n", (&datum)[i].id, (&datum)[i].value);
+#endif
+
+            if ( SimpleEspConnection.sendMessage((uint8_t *)&((&datum)[i]), sizeof(SensoriandoSensorDatum)) ) {
                 CounterSent++;
 
 #ifdef DEBUG
@@ -154,14 +169,18 @@ Serial.println("");
 #endif
 
     }
-
-    delay(1000);
 }
 
 
 /*
  * functions 
  */
+int RandomSensor(SensoriandoSensorDatum *datum)
+{
+    datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
+    return datum != NULL;
+}
+ 
 void espnow_init() 
 {
     if ( ! readConfig() ) {
@@ -250,6 +269,11 @@ int readSensor(SensoriandoSensorDatum *datum)
  
     #if MODULE == WEATHER
         res=weather_read(datum);
+
+#ifdef DEBUG
+Serial.println(res);
+#endif
+
     #else
         datum->stx = STX;
         datum->id = 0;
