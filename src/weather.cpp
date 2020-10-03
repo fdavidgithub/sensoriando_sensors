@@ -1,24 +1,25 @@
 #include "weather.h"
 
-int weather_init(SensoriandoSensorDatum *datum)
+int weather_init(SensoriandoSensorDatum **datum)
 {
 #ifdef WEATHER_DEBUG
+Serial.print(WEATHER_LEN * sizeof(*datum));
 Serial.println("weather init...");
 #endif
 
-    datum = (SensoriandoSensorDatum *)malloc(WEATHER_LEN * sizeof(SensoriandoSensorDatum));
+    *datum = (SensoriandoSensorDatum *)malloc(WEATHER_LEN * sizeof(SensoriandoSensorDatum));
 
 #ifdef WEATHER_DEBUG
 Serial.println("Memory allocated...");
 Serial.print("Size struct: ");Serial.println(sizeof(SensoriandoSensorDatum));
-Serial.print("Size pointer: ");Serial.println(sizeof(datum));
-Serial.print("Size array: ");Serial.println(sizeof(datum)/sizeof(SensoriandoSensorDatum));
+Serial.print("Size alloc: ");Serial.println(sizeof(*datum));
+Serial.print("Size array: ");Serial.println(sizeof(*datum) / sizeof(SensoriandoSensorDatum));
 #endif
 
-    return datum != NULL;
+    return *datum != NULL;
 }
 
-int weather_read(SensoriandoSensorDatum *datum) 
+int weather_read(SensoriandoSensorDatum **datum) 
 {
 #ifdef WEATHER_DEBUG
 Serial.println("weather read...");
@@ -51,26 +52,25 @@ Serial.print(temperature); Serial.print(" *C, ");Serial.print(humidity); Serial.
 #endif
 
         for (i=0; i<WEATHER_LEN; i++) {
-            datum[i].stx = STX;
-            datum[i].dt = NULL;
-            datum[i].etx = ETX;
+            (*datum + i)->stx = STX;
+            (*datum + i)->dt = NULL;
+            (*datum + i)->etx = ETX;
 
             switch ( i ) {
-                case 0: datum[i].id = TEMPERATURE_ID;
-                        datum[i].value = temperature;
+                case 0: (*datum + i)->id = TEMPERATURE_ID;
+                        (*datum + i)->value = temperature;
                         res++;
                         break;
-                case 1: datum[i].id = HUMIDITY_ID;
-                        datum[i].value = humidity;
+                case 1: (*datum + i)->id = HUMIDITY_ID;
+                        (*datum + i)->value = humidity;
                         res++;
                         break;
                 default: res=0;
                          break;
             }
-        }
+        }        
     }
 
-    delay(1000); //need, less than result error
     return res;
 }
 

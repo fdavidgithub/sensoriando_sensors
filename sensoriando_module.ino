@@ -47,7 +47,7 @@
  * GlobalVariable
  */
 SimpleEspNowConnection SimpleEspConnection(SimpleEspNowRole::CLIENT);
-static SensoriandoSensorDatum datum;
+SensoriandoSensorDatum *datum;
 
 String ServerAddress;
 int CounterSent=0;
@@ -67,7 +67,7 @@ bool writeConfig();
 void OnNewGatewayAddress(uint8_t *, String);
 int readSensor(SensoriandoSensorDatum *);
 void OnMessage(uint8_t*, const uint8_t*, size_t);
-int RandomSensor(SensoriandoSensorDatum *);
+int RandomSensor(SensoriandoSensorDatum **);
 
 
 /*
@@ -136,19 +136,21 @@ Serial.println("Pairing started...");
   
     if ( Paired && (millis()-updateelapsed >= UPDATEELAPSED) ) {
         updateelapsed=millis();
-        sensors = readSensor(&datum);
+        sensors = readSensor(datum);
 
 #ifdef DEBUG
 Serial.printf("[%d] Sending data...\n", sensors);
+Serial.print("size");Serial.println(sizeof(datum));
 #endif
 
         for (i=0; i<sensors; i++) {
 #ifdef DEBUG
-Serial.print("ptr ");Serial.println((int)&((&datum)[i]));
-Serial.printf("id %d | value %f\n", (&datum)[i].id, (&datum)[i].value);
-#endif
+Serial.print("ptr ");Serial.println((int)&((datum)[i]));
 
-            if ( SimpleEspConnection.sendMessage((uint8_t *)&((&datum)[i]), sizeof(SensoriandoSensorDatum)) ) {
+Serial.printf("id %d | value %f\n", (datum)[i].id, (datum)[i].value);
+#endif
+            
+            if ( SimpleEspConnection.sendMessage((uint8_t *)&((datum)[i]), sizeof(SensoriandoSensorDatum)) ) {
                 CounterSent++;
 
 #ifdef DEBUG
@@ -175,9 +177,9 @@ Serial.println("");
 /*
  * functions 
  */
-int RandomSensor(SensoriandoSensorDatum *datum)
+int RandomSensor(SensoriandoSensorDatum **datum)
 {
-    datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
+    *datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
     return datum != NULL;
 }
  
@@ -268,7 +270,7 @@ int readSensor(SensoriandoSensorDatum *datum)
     int res=0;
  
     #if MODULE == WEATHER
-        res=weather_read(datum);
+        res=weather_read(&datum);
 
 #ifdef DEBUG
 Serial.println(res);

@@ -23,8 +23,8 @@
 /*
  * Prototypes
  */
-int weather_init(SensoriandoSensorDatum *);
-int weather_read(SensoriandoSensorDatum *);
+int weather_init(SensoriandoSensorDatum **);
+int weather_read(SensoriandoSensorDatum **);
 
 #endif
 
