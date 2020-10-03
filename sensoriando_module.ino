@@ -54,7 +54,6 @@ int CounterSent=0;
 int CounterError=0;
 int Paired=0;
 
-
 /*
  * Prototypes
  */
@@ -65,9 +64,9 @@ void OnPaired(uint8_t *, String);
 bool readConfig();
 bool writeConfig();
 void OnNewGatewayAddress(uint8_t *, String);
-int readSensor(SensoriandoSensorDatum *);
+int readSensor();
 void OnMessage(uint8_t*, const uint8_t*, size_t);
-int RandomSensor(SensoriandoSensorDatum **);
+int RandomSensor();
 
 
 /*
@@ -106,7 +105,7 @@ Serial.print("Client Address: ");Serial.println(WiFi.macAddress());
             ESP.reset();
         }
     #else
-        if ( ! RandomSensor(&datum) ) {
+        if ( ! RandomSensor() ) {
             ESP.reset();
         }
     #endif
@@ -123,7 +122,7 @@ void loop()
     int sensors;
     SimpleEspConnection.loop();
     static long updateelapsed=millis();
-
+    
     if ( digitalRead(GPIO_PAIR) ) {
 
 #ifdef DEBUG
@@ -136,7 +135,7 @@ Serial.println("Pairing started...");
   
     if ( Paired && (millis()-updateelapsed >= UPDATEELAPSED) ) {
         updateelapsed=millis();
-        sensors = readSensor(datum);
+        sensors = readSensor();
 
 #ifdef DEBUG
 Serial.printf("[%d] Sending data...\n", sensors);
@@ -177,9 +176,9 @@ Serial.println("");
 /*
  * functions 
  */
-int RandomSensor(SensoriandoSensorDatum **datum)
+int RandomSensor()
 {
-    *datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
+    datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
     return datum != NULL;
 }
  
@@ -265,7 +264,7 @@ void OnConnected(uint8_t *ga, String ad)
     Serial.println(">>[SERVER] connected!");
 }
 
-int readSensor(SensoriandoSensorDatum *datum) 
+int readSensor() 
 {
     int res=0;
  
