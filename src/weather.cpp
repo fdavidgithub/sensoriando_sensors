@@ -58,7 +58,7 @@ Serial.print(temperature); Serial.print(" *C, ");Serial.print(humidity); Serial.
 
             switch ( i ) {
                 case 0: (*datum + i)->id = TEMPERATURE_ID;
-                        (*datum + i)->value = temperature;
+                        (*datum + i)->value = KELVIN(temperature);
                         res++;
                         break;
                 case 1: (*datum + i)->id = HUMIDITY_ID;
