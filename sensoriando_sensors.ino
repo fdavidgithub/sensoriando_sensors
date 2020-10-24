@@ -145,7 +145,6 @@ Serial.print("size");Serial.println(sizeof(datum));
         for (i=0; i<sensors; i++) {
 #ifdef DEBUG
 Serial.print("ptr ");Serial.println((int)&((datum)[i]));
-
 Serial.printf("id %d | value %f\n", (datum)[i].id, (datum)[i].value);
 #endif
             
@@ -279,6 +278,7 @@ Serial.println(res);
         datum->stx = STX;
         datum->id = 0;
         datum->dt = NULL;
+        strcpy(datum->uuid, "00000000-0000-0000-0000-000000000000"); //UUID not existed
         datum->value = random(1,100)/PI;  
         datum->etx = ETX;
         
@@ -288,6 +288,7 @@ Serial.println(res);
 #ifdef DEBUG
 for (int i=0; i<res; i++) {
 Serial.print("Bytes sent: ");Serial.println(sizeof(SensoriandoSensorDatum));
+Serial.print("UUID: ");Serial.println(datum[i].uuid);
 Serial.printf("stx=0x%02X, id=%d, value=%02f, etx=0x%02X\n", datum[i].stx, datum[i].id, datum[i].value, datum[i].etx);
 }
 #endif

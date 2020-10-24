@@ -11,15 +11,19 @@
 #include <sensoriandoData.h>
 #include "gpio.h"
 
+
 /*
  * MACROS
  */
 #define WEATHER_DEBUG
 #define KELVIN(x)       ((x) + 273.15)
-
 #define WEATHER_LEN     2    //Account of sensors  
-#define TEMPERATURE_ID  5    //id of temperature on table Sensors
-#define HUMIDITY_ID     6    //id of himidity on table Sensors
+
+//Uniques for each hardware compiled
+#define WEATHER_UUID    "e8989226-9475-4c09-8e53-77f759223a6d"  //uuid of sensor
+#define TEMPERATURE_ID  5                                       //id of temperature
+#define HUMIDITY_ID     6                                       //id of himidity
+
 
 /*
  * Prototypes

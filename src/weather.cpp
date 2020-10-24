@@ -55,6 +55,7 @@ Serial.print(temperature); Serial.print(" *C, ");Serial.print(humidity); Serial.
             (*datum + i)->stx = STX;
             (*datum + i)->dt = NULL;
             (*datum + i)->etx = ETX;
+            strcpy((*datum + i)->uuid, WEATHER_UUID);
 
             switch ( i ) {
                 case 0: (*datum + i)->id = TEMPERATURE_ID;
