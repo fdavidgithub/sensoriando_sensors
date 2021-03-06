@@ -14,92 +14,129 @@
  * Libraries (Sketch >> Include Library >> Manage Libraies)  
  *    Sensoriando       by Francis David      v1.0.0  
  *    SimplesEspNow     by                    v
+ *    WifiManager       by                    v
+ *    
  *
  */
-#include <sensoriandoData.h>
-#include <SimpleEspNowConnection.h>
+#include <sensoriando.h>
+
 #include "src/gpio.h"
 #include "src/messages.h"
+#include "src/wifi.h"
+#include "src/espnow.h"
 
 
 /*
  * MACROS
  */
-#define DEBUG 
-#define MODULE  0x01
+//#define DEBUG 
 
-#define UPDATEELAPSED   1000
-#define DEBOUNCE        300
-
+//Operation mode
 #define NOSENSOR    0x00    //Random values
 #define WEATHER     0x01    //Temperature and humidity of air
 
-#ifdef MODULE
-    #if MODULE == WEATHER
-        #include "src/weather.h"
-    #endif
-#else
-    #define MODULE  NOSENSOR
+#define UPDATEELAPSED   1000
+#define DEBOUNCE        300
+#define TIMERESET       5000   //default 5000 -> 5 seconds in miliseconds
+#define TIMEPAIR        300
+#define WDT             3000
+
+//Current module
+#define MODULE  NOSENSOR
+
+#if MODULE == WEATHER
+  #include "src/weather.h"
 #endif
 
 
 /*
  * GlobalVariable
  */
-SimpleEspNowConnection SimpleEspConnection(SimpleEspNowRole::CLIENT);
-SensoriandoSensorDatum *datum;
+wifi_connection ConnectWifi;
+WiFiClient EspClient;
+SensoriandoObj Broker(EspClient);
 
-String ServerAddress;
-int CounterSent=0;
-int CounterError=0;
-int Paired=0;
+//for esp
+espnow_connection ConnectEsp(SimpleEspNowRole::CLIENT);
+
+//both (wifi and esp)
+SensoriandoSensorDatum *datum;
+enum ModeOper{None, EspNow, Wifi};
+int ModeUse=None;
+
 
 /*
  * Prototypes
  */
-void espnow_init();
-bool readConfig();
-void OnSendError(uint8_t*);
-void OnPaired(uint8_t *, String);
-bool readConfig();
-bool writeConfig();
-void OnNewGatewayAddress(uint8_t *, String);
-int readSensor();
-void OnMessage(uint8_t*, const uint8_t*, size_t);
+int ReadSensor();
 int RandomSensor();
+byte DatumSend(SensoriandoSensorDatum *);
+
+void OnSendDone(uint8_t *);
+void OnSendError(uint8_t *);
+void OnPaired(uint8_t *, String);
+void OnNewGatewayAddress(uint8_t *, String);
+void OnConnected(uint8_t *, String);
+void OnMessage(uint8_t *, const uint8_t *, size_t);
+void OnPairingFinished();
 
 
 /*
  * Main Program 
  */
 void setup()
-{
+{     
+    ESP.wdtEnable(WDT);       
     Serial.begin(115200);
-    pinMode(GPIO_PAIR, INPUT);
-
-    // start SPIFFS file system. Ensure, sketch is uploaded with FS support !!!
-    if ( ! SPIFFS.begin() ) {
+    
+    pinMode(GPIO_RESET, INPUT);
 
 #ifdef DEBUG
-Serial.print("FS formating...");
+Serial.println();
+Serial.print("[DEBUG] Client Address: ");
+Serial.println(WiFi.macAddress());
 #endif
 
-        SPIFFS.format(); Serial.println("OK");
+    //Connection
+
+#ifdef DEBUG
+Serial.println("[DEBUG] Try EspNow Connection...");
+#endif
+    
+    if ( espnow_init(&ConnectEsp, &OnMessage, \
+            &OnSendError, &OnSendDone, \
+            &OnNewGatewayAddress, &OnConnected, \
+            &OnPaired, &OnPairingFinished) ) {     
+
+        ModeUse = EspNow;
+    } else { 
+
+#ifdef DEBUG
+Serial.println("[DEBUG] Try Wifi Connection...");
+#endif
+
+        if ( wifi_init(&ConnectWifi) ) {
+            ModeUse = Wifi; 
+
+            //Sensoriando
+            if ( !sensoriandoInit(&Broker) ) {
+#ifdef DEBUG
+Serial.println("[DEBUG] Broker do not init");
+#endif
+            } else {
+#ifdef DEBUG
+Serial.println("[DEBUG] Broker connected");
+#endif
+            }    
+        } else {
+#ifdef DEBUG
+Serial.println("[DEBUG] Connection None");
+#endif
+            ModeUse = None;      
+        }        
     }
-  
-    SimpleEspConnection.begin();
-    SimpleEspConnection.setPairingBlinkPort(GPIO_LED);
-    SimpleEspConnection.onMessage(&OnMessage);
-    SimpleEspConnection.onPaired(&OnPaired);
-    SimpleEspConnection.onNewGatewayAddress(&OnNewGatewayAddress);
-    SimpleEspConnection.onSendError(&OnSendError);
-
-#ifdef DEBUG
-Serial.print("Client Address: ");Serial.println(WiFi.macAddress());
-#endif
-
-    espnow_init();
-
+    
+    //Sensor
     #if MODULE == WEATHER
         if ( ! weather_init(&datum) ) {
             ESP.reset();
@@ -109,9 +146,9 @@ Serial.print("Client Address: ");Serial.println(WiFi.macAddress());
             ESP.reset();
         }
     #endif
-
+    
 #ifdef DEBUG
-Serial.println("Waiting for sensor");
+Serial.println("[DEBUG] Waiting for sensor...");
 #endif
 
 }
@@ -120,52 +157,69 @@ void loop()
 {
     int i;
     int sensors;
-    SimpleEspConnection.loop();
     static long updateelapsed=millis();
+    static long resetelapsed;
+    static long pairelapsed;
+        
+    ConnectEsp.loop();
     
-    if ( digitalRead(GPIO_PAIR) ) {
-
+    if  ( digitalRead(GPIO_RESET) ) {
+        if ( ((millis()-pairelapsed) > TIMEPAIR) && espnow_pair(&ConnectEsp) ) {
 #ifdef DEBUG
-Serial.println("Pairing started...");
+Serial.println("[DEBUG] Pairing...");
 #endif
-
-        delay(DEBOUNCE);
-        SimpleEspConnection.startPairing(120);
+            delay(DEBOUNCE);
+        }
+        
+        if ( (millis()-resetelapsed) > TIMERESET ) {       
+#ifdef DEBUG
+Serial.println("[DEBUG] Reseting...");
+#endif
+            espnow_reset();
+            wifi_reset(&ConnectWifi);
+            delay(DEBOUNCE);
+            
+            ESP.reset();           
+        } 
+    } else {
+        resetelapsed=millis();
+        pairelapsed=millis();
     }
-  
-    if ( Paired && (millis()-updateelapsed >= UPDATEELAPSED) ) {
-        updateelapsed=millis();
-        sensors = readSensor();
 
 #ifdef DEBUG
-Serial.printf("[%d] Sending data...\n", sensors);
-Serial.print("size");Serial.println(sizeof(datum));
+if ( Serial.available() && (Serial.read() == 'r') ) {
+  ESP.reset();
+}
+#endif
+    
+    if ( (ModeUse != None) && (millis()-updateelapsed > UPDATEELAPSED) ) {
+        updateelapsed=millis();
+        sensors = ReadSensor();
+
+#ifdef DEBUG
+Serial.printf("[DEBUG] Sending data from %d sensors...\n", sensors);
 #endif
 
         for (i=0; i<sensors; i++) {
 #ifdef DEBUG
-Serial.print("ptr ");Serial.println((int)&((datum)[i]));
-Serial.printf("id %d | value %f\n", (datum)[i].id, (datum)[i].value);
+Serial.printf("[DEBUG] id %d | value %f\n", (datum)[i].id, (datum)[i].value);
+digitalWrite(GPIO_LED, 0);
 #endif
             
-            if ( SimpleEspConnection.sendMessage((uint8_t *)&((datum)[i]), sizeof(SensoriandoSensorDatum)) ) {
-                CounterSent++;
-
+            if ( DatumSend(&((datum)[i])) ) {
 #ifdef DEBUG
-Serial.println("OK");
+Serial.printf("[DEBUG] Sent datum from sensor %d\n", i);
 #endif
             } else {
 
 #ifdef DEBUG
-Serial.println("FAIL");
+Serial.println("[DEBUG] Fail while sending datum from sensor!");
 #endif
             }
         }
 
 #ifdef DEBUG
-Serial.print(" | Sent: ");Serial.print(CounterSent);
-Serial.print(", error: ");Serial.print(CounterError);
-Serial.println("");
+digitalWrite(GPIO_LED, 1);
 #endif
 
     }
@@ -175,95 +229,33 @@ Serial.println("");
 /*
  * functions 
  */
+byte DatumSend(SensoriandoSensorDatum *datum)
+{    
+    byte res;
+
+    switch ( ModeUse ) {
+        case EspNow:  res = espnow_send(&ConnectEsp, datum);
+                      break;
+        case Wifi:    res = wifi_send(&Broker, datum);
+                      break;
+        default:      res = 0;
+                      break;     
+    }
+
+#ifdef DEBUG
+Serial.printf("[DEBUG] Datum Send Result %d\n", res);
+#endif
+
+    return res;
+}
+
 int RandomSensor()
 {
     datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
     return datum != NULL;
 }
- 
-void espnow_init() 
-{
-    if ( ! readConfig() ) {
-        Serial.println("!!! [READ] Server address not save. Please pair first !!!");
-        return;
-    } else {
-        Serial.print("Server address saved: ");Serial.println(ServerAddress);
-    }
 
-    if ( ! SimpleEspConnection.setServerMac(ServerAddress)) {// set the server address which is stored in EEPROM
-        Serial.println("!!! [CONNECT] Server address not valid. Please pair again !!!");
-        return;
-    } else {
-        Serial.print("Server address connected:");Serial.println(ServerAddress);
-        Paired = 1;
-    }
-}
-
-void OnSendError(uint8_t* ad)
-{
-#ifdef DEBUG    
-Serial.println("Sending to " + SimpleEspConnection.macToStr(ad) + " was not possible!");
-#endif
-
-    CounterError++;
-}
-
-void OnPaired(uint8_t *ga, String ad)
-{
-#ifdef DEBUG    
-Serial.println("EspNowConnection : Server '" + ad + " paired! ");
-#endif
-
-    SimpleEspConnection.endPairing();
-    espnow_init();
-}
-
-bool readConfig()
-{
-    int i;
-
-    if (!SPIFFS.exists("/setup.txt"))
-        return false;
-
-    File configFile = SPIFFS.open("/setup.txt", "r");
-    if (!configFile)
-        return false;
-
-    for (i = 0; i < 12; i++) //Read server address
-        ServerAddress += (char)configFile.read();
-
-    configFile.close();
-    return true;
-}
-
-bool writeConfig()
-{
-    File configFile = SPIFFS.open("/setup.txt", "w");
-  
-    if (!configFile)
-        return false;
-
-    configFile.print(ServerAddress.c_str());
-    configFile.close();
-
-    return true;
-}
-
-void OnNewGatewayAddress(uint8_t *ga, String ad)
-{
-    ServerAddress = ad;
-    SimpleEspConnection.setServerMac(ga);
-    Serial.println("Pairing mode finished...");
-    writeConfig();
-}
-
-void OnConnected(uint8_t *ga, String ad)
-{
-    Serial.println(">> "); Serial.print(ad);
-    Serial.println(">>[SERVER] connected!");
-}
-
-int readSensor() 
+int ReadSensor() 
 {
     int res=0;
  
@@ -287,8 +279,9 @@ Serial.println(res);
 
 #ifdef DEBUG
 for (int i=0; i<res; i++) {
-Serial.print("Bytes sent: ");Serial.println(sizeof(SensoriandoSensorDatum));
-Serial.print("UUID: ");Serial.println(datum[i].uuid);
+Serial.print("[DEBUG] Bytes sent: ");
+Serial.println(sizeof(SensoriandoSensorDatum));
+Serial.print("[DEBUG] UUID: ");Serial.println(datum[i].uuid);
 Serial.printf("stx=0x%02X, id=%d, value=%02f, etx=0x%02X\n", datum[i].stx, datum[i].id, datum[i].value, datum[i].etx);
 }
 #endif
@@ -296,14 +289,72 @@ Serial.printf("stx=0x%02X, id=%d, value=%02f, etx=0x%02X\n", datum[i].stx, datum
     return res;
 }
 
-void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
+void OnSendError(uint8_t* ad)
 {
-
 #ifdef DEBUG    
-Serial.print("Anything arrive from ");Serial.println((char *)ad);
-Serial.println((char *)message);
+Serial.println("[DEBUG] OnSendError " + ConnectEsp.macToStr(ad));
 #endif
-
 }
 
- 
+void OnSendDone(uint8_t* ad)
+{
+#ifdef DEBUG    
+Serial.println("[DEBUG] OnSendDone " + ConnectEsp.macToStr(ad));
+#endif
+}
+
+void OnPairingFinished()
+{
+#ifdef DEBUG    
+Serial.println("[DEBUG] OnPairingFinished");
+#endif
+
+  delay(1000);
+  ESP.reset();
+}
+
+void OnPaired(uint8_t *ga, String ad)
+{
+#ifdef DEBUG    
+Serial.println("[DEBUG] OnPaired, server '" + ad + " paired! ");
+#endif
+
+    ConnectEsp.endPairing();
+}
+
+void OnNewGatewayAddress(uint8_t *ga, String ad)
+{  
+    ConnectEsp.setServerMac(ga);
+
+#ifdef DEBUG
+Serial.println(sizeof(ad));
+Serial.println("[DEBUG] OnNewGatewayAddress");
+Serial.print("Gateway: ");
+for (int i=0; i<6; i++) {
+  Serial.print(ga[i], HEX);Serial.print(" ");
+} 
+Serial.println("");
+Serial.print("[DEBUG] Address: ");Serial.println(ad);
+#endif
+
+    if ( !espnow_writeconf(ad) ) {
+#ifdef DEBUG
+Serial.println("[DEBUG] SPIFFS: Error while write in file");
+#endif   
+    }
+}
+
+void OnConnected(uint8_t *ga, String ad)
+{
+#ifdef DEBUG
+Serial.println("[DEBUG] onConnected"); Serial.print(ad);
+#endif
+}
+
+void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
+{
+#ifdef DEBUG
+Serial.print("[DEBUG] OnMessage from ");Serial.println((char *)ad);
+Serial.println((char *)message);
+#endif
+}
