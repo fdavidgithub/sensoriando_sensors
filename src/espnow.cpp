@@ -10,7 +10,7 @@ bool espnow_writeconf(String serveraddress)
         return false;
 
 #ifdef DEBUG_ESPNOW
-Serial.print("Write AD: ");Serial.println(serveraddress.c_str());
+Serial.print("[DEBUG_ESPNOW] Write AD: ");Serial.println(serveraddress.c_str());
 #endif
 
     configfile.print(serveraddress.c_str());

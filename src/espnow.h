@@ -15,8 +15,8 @@
 /*
  * MACROS
  */
-//#define DEBUG_ESPNOW
-#define CONFIGFILE  "espnow.conf"
+#define DEBUG_ESPNOW
+#define CONFIGFILE  "/espnow.conf"
 #define PAIRTIME    60
 
 
