@@ -45,6 +45,7 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
+#define UUID    "e8989226-9475-4c09-8e53-77f759223a6d" 
 #define MODULE  WEATHER
 
 #if MODULE == WEATHER
@@ -133,7 +134,7 @@ void setup()
 
   //Sensor
 #if MODULE == WEATHER
-  if ( ! weather_init(&datum) ) {
+  if ( ! weather_init(&datum, UUID) ) {
     ESP.reset();
   }
 #else

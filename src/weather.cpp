@@ -1,14 +1,18 @@
 #include "weather.h"
 
-int weather_init(SensoriandoSensorDatum **datum)
+int weather_init(SensoriandoSensorDatum **datum, char *uuid)
 {
+    byte res;
+
 #ifdef DEBUG_WEATHER
 Serial.print(WEATHER_LEN * sizeof(*datum));
 Serial.println("[DEBUG WEATHER] Weather init...");
 #endif
 
     *datum = (SensoriandoSensorDatum *)malloc(WEATHER_LEN * sizeof(SensoriandoSensorDatum));
+    res = *datum != NULL;
 
+    if ( res ) {
 #ifdef DEBUG_WEATHER
 Serial.println("[DEBUG WEATHER] Memory allocated...");
 Serial.print("Size struct: ");Serial.println(sizeof(SensoriandoSensorDatum));
@@ -16,7 +20,17 @@ Serial.print("Size alloc: ");Serial.println(sizeof(*datum));
 Serial.print("Size array: ");Serial.println(sizeof(*datum) / sizeof(SensoriandoSensorDatum));
 #endif
 
-    return *datum != NULL;
+        for (int i = 0; i < WEATHER_LEN; i++) {
+            (*datum + i)->stx = STX;
+            (*datum + i)->dt = NULL;
+            (*datum + i)->value = NULL;
+            (*datum + i)->id = NULL;
+            (*datum + i)->etx = ETX;
+            strcpy((*datum + i)->uuid, uuid);
+        }
+    }
+
+    return res;
 }
 
 int weather_read(SensoriandoSensorDatum **datum) 
@@ -42,11 +56,6 @@ Serial.print(humidity); Serial.println(" %");
 #endif
 
         for (i=0; i<WEATHER_LEN; i++) {
-            (*datum + i)->stx = STX;
-            (*datum + i)->dt = NULL;
-            (*datum + i)->etx = ETX;
-            strcpy((*datum + i)->uuid, WEATHER_UUID);
-
             switch ( i ) {
                 case 0: (*datum + i)->id = TEMPERATURE_ID;
                         (*datum + i)->value = KELVIN(temperature);

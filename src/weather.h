@@ -28,7 +28,7 @@
 /*
  * Prototypes
  */
-int weather_init(SensoriandoSensorDatum **);
+int weather_init(SensoriandoSensorDatum **, char *);
 int weather_read(SensoriandoSensorDatum **);
 
 #endif
