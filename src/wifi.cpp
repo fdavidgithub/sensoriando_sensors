@@ -21,7 +21,6 @@ byte wifi_init(wifi_connection *conn)
      */
     WiFi.macAddress(mac);
 
-    strcpy(namedevice, "Sensoriando");
     for (i=0; i<sizeof(mac); i++) {
         sprintf(namedevice, "%s%02X", namedevice, mac[i]);
     }

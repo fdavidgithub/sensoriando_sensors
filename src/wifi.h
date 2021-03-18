@@ -14,7 +14,7 @@
 /*
  * MACROS
  */
-//#define DEBUG_WIFI
+#define DEBUG_WIFI
 #define PREFIXAPMODE  "Sensoriando"
 
 
