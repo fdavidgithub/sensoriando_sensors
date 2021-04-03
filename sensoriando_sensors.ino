@@ -37,7 +37,7 @@
 #define WEATHER     0x01    //Temperature and humidity of air
 
 //Configure module
-#define UPDATEELAPSED   1000
+#define UPDATEELAPSED   1500
 #define DEBOUNCE        300
 #define TIMERESET       5000   //default 5000 -> 5 seconds in miliseconds
 #define TIMEPAIR        500
@@ -188,7 +188,9 @@ void loop()
     pairelapsed = millis();
   }
 
-  ConnectEsp.loop();
+  if ( (ConnectInUse == ESPNOW) || (ConnectInUse == NONE) ) {
+    ConnectEsp.loop();
+  }
 
 #ifdef DEBUG
   if ( Serial.available() && (Serial.read() == 'r') ) {
