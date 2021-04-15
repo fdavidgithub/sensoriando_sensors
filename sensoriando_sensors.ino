@@ -29,7 +29,7 @@
 /*
    MACROS
 */
-//#define DEBUG
+#define DEBUG
 #define DIGITALREAD   !digitalRead
 
 //Operation mode
@@ -82,10 +82,10 @@ void SetConnWifi();
 
 void OnSendDone(uint8_t *);
 void OnSendError(uint8_t *);
-void OnPaired(uint8_t *, String);
+//void OnPaired(uint8_t *, String);
 void OnNewGatewayAddress(uint8_t *, String);
-void OnConnected(uint8_t *, String);
-void OnMessage(uint8_t *, const uint8_t *, size_t);
+//void OnConnected(uint8_t *, String);
+//void OnMessage(uint8_t *, const uint8_t *, size_t);
 void OnPairingFinished();
 
 
@@ -110,11 +110,8 @@ void setup()
   Serial.println("[DEBUG] Try EspNow Connection...");
 #endif
 
-  if ( espnow_init(&ConnectEsp, &OnMessage, \
-                   &OnSendError, &OnSendDone, \
-                   &OnNewGatewayAddress, &OnConnected, \
-                   &OnPaired, &OnPairingFinished) ) {
-
+  if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
+                   &OnNewGatewayAddress, &OnPairingFinished) ) {
     ConnectInUse = ESPNOW;
   }
 
@@ -159,20 +156,22 @@ void loop()
 {
   int i;
   int sensors;
-  static long updateelapsed = millis();
-  static long resetelapsed;
-  static long pairelapsed;
+  static long update_elapsed = millis();
+  static long config_elapsed;
 
   if  ( DIGITALREAD(GPIO_CONFIG) ) {
-    if ( ((millis() - pairelapsed) > TIMEPAIR) && espnow_pair(&ConnectEsp) ) {
-#ifdef DEBUG
-      Serial.println("[DEBUG] Pairing...");
-#endif
-      ConnectInUse = NONE;
-      delay(DEBOUNCE);
+    if ( ((millis() - config_elapsed) > TIMEPAIR) && ConnectInUse ) {
+      if ( espnow_pair(&ConnectEsp) ) {
+        #ifdef DEBUG
+          Serial.println("[DEBUG] Pairing...");
+        #endif
+      
+        ConnectInUse = NONE;
+        delay(DEBOUNCE);
+      }
     }
 
-    if ( (millis() - resetelapsed) > TIMERESET ) {
+    if ( (millis() - config_elapsed) > TIMERESET ) {
 #ifdef DEBUG
       Serial.println("[DEBUG] Reseting...");
 #endif
@@ -184,8 +183,7 @@ void loop()
       ESP.reset();
     }
   } else {
-    resetelapsed = millis();
-    pairelapsed = millis();
+    config_elapsed = millis();
   }
 
   if ( (ConnectInUse == ESPNOW) || (ConnectInUse == NONE) ) {
@@ -193,13 +191,16 @@ void loop()
   }
 
 #ifdef DEBUG
-  if ( Serial.available() && (Serial.read() == 'r') ) {
-    ESP.reset();
+  if ( Serial.available() ) {
+    switch (Serial.read()) {
+      case 'r': ESP.reset();break;
+      case 'e': espnow_reset();break;
+      case 'w': wifi_reset(&ConnectWifi);break;
+    }
   }
 #endif
 
-  if ( (ConnectInUse) && (millis() - updateelapsed > UPDATEELAPSED) ) {
-
+  if ( (ConnectInUse) && (millis() - update_elapsed > UPDATEELAPSED) ) {
     switch ( ConnectInUse ) {
       case ESPNOW: if ( ! espnow_connected(&ConnectEsp) ) {
 #ifdef DEBUG
@@ -220,7 +221,7 @@ void loop()
       default: break;
     }
     
-    updateelapsed = millis();
+    update_elapsed = millis();
     sensors = ReadSensor();
 
 #ifdef DEBUG
@@ -356,15 +357,6 @@ void OnPairingFinished()
 #endif
 }
 
-void OnPaired(uint8_t *ga, String ad)
-{
-#ifdef DEBUG
-  Serial.println("[DEBUG] OnPaired, server '" + ad + " paired! ");
-#endif
-
-  ConnectEsp.endPairing();
-}
-
 void OnNewGatewayAddress(uint8_t *ga, String ad)
 {
   ConnectEsp.setServerMac(ga);
@@ -389,12 +381,14 @@ void OnNewGatewayAddress(uint8_t *ga, String ad)
     Serial.print("[DEBUG] SPIFFS: Write in file");
 #endif
 
-    wifi_reset(&ConnectWifi);
+    ConnectInUse = ESPNOW;
+    //wifi_reset(&ConnectWifi);
     delay(DEBOUNCE);
     ESP.reset();
   }
 }
 
+/*
 void OnConnected(uint8_t *ga, String ad)
 {
 #ifdef DEBUG
@@ -409,3 +403,15 @@ void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
   Serial.println((char *)message);
 #endif
 }
+
+void OnPaired(uint8_t *ga, String ad)
+{
+#ifdef DEBUG
+  Serial.println("[DEBUG] OnPaired, server '" + ad + " paired! ");
+#endif
+
+  ConnectInUse = ESPNOW;
+  ConnectEsp.endPairing();
+}
+
+*/

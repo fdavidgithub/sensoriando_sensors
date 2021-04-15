@@ -33,10 +33,10 @@ Serial.println(CONFIGFILE);
 
     // start SPIFFS file system. Ensure, sketch is uploaded with FS support !!!
     if ( ! SPIFFS.begin() ) {
-        espnow_reset();
+        SPIFFS.format();
     }
 
-    if (!SPIFFS.exists(CONFIGFILE)) {
+    if ( ! SPIFFS.exists(CONFIGFILE)) {
 #ifdef DEBUG_ESPNOW
 Serial.println("[DEBUG_ESPNOW] Config file not found");
 #endif
@@ -132,20 +132,20 @@ void espnow_reset()
 {
 
 #ifdef DEBUG_ESPNOW
-Serial.print("[DEBUG_ESPNOW] FS formating...");
+Serial.print("[DEBUG_ESPNOW] Deleting config file...");
 #endif
 
-    SPIFFS.format();
+    SPIFFS.remove(CONFIGFILE);
 
 #ifdef DEBUG_ESPNOW
 Serial.println("OK");
 #endif
 } 
 
-byte espnow_init(espnow_connection *conn, MessageFunction m, \
+byte espnow_init(espnow_connection *conn, \
                     SendErrorFunction se, SendDoneFunction sd, \
-                    NewGatewayAddressFunction nga, ConnectedFunction c, \
-                    PairedFunction p, PairingFinishedFunction pf) 
+                    NewGatewayAddressFunction nga, \
+                    PairingFinishedFunction pf) 
 {
     byte res=0;
     String serveraddress;
@@ -154,8 +154,8 @@ byte espnow_init(espnow_connection *conn, MessageFunction m, \
     //Setting ESPNow
     conn->begin();
     conn->setPairingBlinkPort(GPIO_PAIR);
-    conn->onMessage(m);
-    conn->onPaired(p);
+//    conn->onMessage(m);
+//    conn->onPaired(p);
     conn->onPairingFinished(pf);
     conn->onNewGatewayAddress(nga);
     conn->onSendError(se);

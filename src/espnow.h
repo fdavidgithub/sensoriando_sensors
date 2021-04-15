@@ -25,10 +25,10 @@
  */
 typedef SimpleEspNowConnection espnow_connection;
 
-typedef void (*MessageFunction)(uint8_t *, const uint8_t *, size_t);
+//typedef void (*MessageFunction)(uint8_t *, const uint8_t *, size_t);
 typedef void (*NewGatewayAddressFunction)(uint8_t *, String);
-typedef void (*PairedFunction)(uint8_t *, String);
-typedef void (*ConnectedFunction)(uint8_t *, String);
+//typedef void (*PairedFunction)(uint8_t *, String);
+//typedef void (*ConnectedFunction)(uint8_t *, String);
 typedef void (*SendErrorFunction)(uint8_t *);
 typedef void (*SendDoneFunction)(uint8_t *);
 typedef void (*PairingFinishedFunction)(void);
@@ -37,10 +37,10 @@ typedef void (*PairingFinishedFunction)(void);
 /*
  * Prototypes
  */
-byte espnow_init(espnow_connection *, MessageFunction, \
-                    SendErrorFunction, SendDoneFunction,
-                    NewGatewayAddressFunction, ConnectedFunction, \
-                    PairedFunction, PairingFinishedFunction);
+byte espnow_init(espnow_connection *, \
+                    SendErrorFunction, SendDoneFunction, \
+                    NewGatewayAddressFunction, \
+                    PairingFinishedFunction);
 void espnow_reset();
 byte espnow_connected(espnow_connection *);
 byte espnow_pair(espnow_connection *);
