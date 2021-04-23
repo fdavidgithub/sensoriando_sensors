@@ -35,9 +35,9 @@
 //Operation mode
 #define NOSENSOR    0x00    //Random values
 #define WEATHER     0x01    //Temperature and humidity of air
+#define BUTTON      0x02    //State of button
 
 //Configure module
-#define UPDATEELAPSED   1500
 #define DEBOUNCE        300
 #define TIMERESET       5000   //default 5000 -> 5 seconds in miliseconds
 #define TIMEPAIR        500
@@ -45,11 +45,15 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define UUID    "e8989226-9475-4c09-8e53-77f759223a6d" 
+#define UUID    "e8989226-9475-4c09-8e53-77f759223a6d"
 #define MODULE  WEATHER
 
 #if MODULE == WEATHER
 #include "src/weather.h"
+#endif
+
+#if MODULE == BUTTON
+#include "src/button.h"
 #endif
 
 
@@ -62,6 +66,7 @@ enum ConnectMode {NONE, ESPNOW, WIFI};
 wifi_connection ConnectWifi;
 WiFiClient EspClient;
 SensoriandoObj Broker(EspClient);
+uint8_t MacAddress[6];
 
 //EspNow
 espnow_connection ConnectEsp(SimpleEspNowRole::CLIENT);
@@ -75,7 +80,7 @@ int ErrSendCounter = 0;
 /*
    Prototypes
 */
-int ReadSensor();
+int ReadSensor(long *);
 int RandomSensor();
 byte DatumSend(SensoriandoSensorDatum *);
 void SetConnWifi();
@@ -100,7 +105,7 @@ void setup()
   pinMode(GPIO_CONFIG, INPUT);
 
   //Serial baudrate
-#ifdef DEBUG  
+#ifdef DEBUG
   Serial.begin(115200);
   Serial.println("[DEBUG MODE]");
 #endif
@@ -113,9 +118,7 @@ void setup()
   if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
                    &OnNewGatewayAddress, &OnPairingFinished) ) {
     ConnectInUse = ESPNOW;
-  }
-
-  if ( ! ConnectInUse ) {
+  } else {
 #ifdef DEBUG
     Serial.println("[DEBUG] Try Wifi Connection...");
 #endif
@@ -134,7 +137,15 @@ void setup()
   if ( ! weather_init(&datum, UUID) ) {
     ESP.reset();
   }
-#else
+#endif
+
+#if MODULE == BUTTON
+  if ( ! button_init(&datum, UUID) ) {
+    ESP.reset();
+  }
+#endif
+
+#if MODULE == NOSENSOR
   if ( ! RandomSensor() ) {
     ESP.reset();
   }
@@ -154,18 +165,17 @@ void setup()
 
 void loop()
 {
-  int i;
   int sensors;
-  static long update_elapsed = millis();
   static long config_elapsed;
+  static long update_elapsed = millis();
 
   if  ( DIGITALREAD(GPIO_CONFIG) ) {
     if ( ((millis() - config_elapsed) > TIMEPAIR) && ConnectInUse ) {
       if ( espnow_pair(&ConnectEsp) ) {
-        #ifdef DEBUG
-          Serial.println("[DEBUG] Pairing...");
-        #endif
-      
+#ifdef DEBUG
+        Serial.println("[DEBUG] Pairing...");
+#endif
+
         ConnectInUse = NONE;
         delay(DEBOUNCE);
       }
@@ -193,42 +203,47 @@ void loop()
 #ifdef DEBUG
   if ( Serial.available() ) {
     switch (Serial.read()) {
-      case 'r': ESP.reset();break;
-      case 'e': espnow_reset();break;
-      case 'w': wifi_reset(&ConnectWifi);break;
+      case 'r': ESP.reset(); break;
+      case 'e': espnow_reset(); break;
+      case 'w': wifi_reset(&ConnectWifi); break;
     }
   }
 #endif
 
-  if ( (ConnectInUse) && (millis() - update_elapsed > UPDATEELAPSED) ) {
+  sensors = ReadSensor(&update_elapsed);
+
+  if ( sensors && ConnectInUse ) {
     switch ( ConnectInUse ) {
-      case ESPNOW: if ( ! espnow_connected(&ConnectEsp) ) {
+      case ESPNOW: if ( !espnow_connected(&ConnectEsp) ) {
 #ifdef DEBUG
-  Serial.print("[DEBUG] EspNow: Without connect, rebooting...");
+          Serial.print("[DEBUG] EspNow: Without connect, rebooting...");
 #endif
-              ESP.reset();
-              }
-              
-              break;
-      case WIFI: if ( ! wifi_connected() ) {
+          ESP.reset();
+        }
+
+        break;
+      case WIFI: if ( !wifi_connected() ) {
 #ifdef DEBUG
-  Serial.print("[DEBUG] Wifi: Without connect, rebooting...");
+          Serial.print("[DEBUG] Wifi: Without connect, rebooting...");
 #endif
-              ESP.reset();
-            }
-            
-            break;
+          ESP.reset();
+        }
+
+        if ( !sensoriandoReconnect(&Broker, MacAddress) ) {
+#ifdef DEBUG
+          Serial.print("[DEBUG] Broker: Without connect, rebooting...");
+#endif
+          ESP.reset();
+        }
+        break;
       default: break;
     }
-    
-    update_elapsed = millis();
-    sensors = ReadSensor();
 
 #ifdef DEBUG
     Serial.printf("[DEBUG] Sending data from %d sensors...\n", sensors);
 #endif
 
-    for (i = 0; i < sensors; i++) {
+    for (int i = 0; i < sensors; i++) {
 #ifdef DEBUG
       Serial.printf("[DEBUG] id %d | value %f\n", (datum)[i].id, (datum)[i].value);
 #endif
@@ -239,20 +254,21 @@ void loop()
 #endif
         ErrSendCounter = 0;
       } else {
-
 #ifdef DEBUG
-        Serial.println("[DEBUG] Fail while sending datum from sensor!");
+        Serial.printf("[DEBUG] Fail while sending datum from sensor %d\n", i);
 #endif
         ErrSendCounter++;
       }
     }
 
     if ( (ErrSendCounter >= TRYSEND) ) {
-Serial.println("Resetting");
-          ESP.reset();  
+#ifdef DEBUG
+      Serial.println("Resetting");
+#endif
+      ESP.reset();
     }
-
   }
+
 }
 
 
@@ -261,24 +277,20 @@ Serial.println("Resetting");
 */
 void SetConnWifi()
 {
-    uint8_t mac[6];
-    
-    if ( wifi_init(&ConnectWifi) ) {
-      ConnectInUse = WIFI;
-      
-      //Sensoriando
-      WiFi.macAddress(mac);
+  if ( wifi_init(&ConnectWifi, MacAddress) ) {
+    ConnectInUse = WIFI;
 
-      if ( !sensoriandoInit(&Broker, mac) ) {
+    //Sensoriando
+    if ( !sensoriandoInit(&Broker, MacAddress) ) {
 #ifdef DEBUG
-        Serial.println("[DEBUG] Broker do not init");
+      Serial.println("[DEBUG] Broker do not init");
 #endif
-      } else {
+    } else {
 #ifdef DEBUG
-        Serial.println("[DEBUG] Broker connected");
+      Serial.println("[DEBUG] Broker connected");
 #endif
-      }
-    }  
+    }
+  }
 }
 
 byte DatumSend(SensoriandoSensorDatum *datum)
@@ -307,13 +319,19 @@ int RandomSensor()
   return datum != NULL;
 }
 
-int ReadSensor()
+int ReadSensor(long *elapsed)
 {
   int res = 0;
 
 #if MODULE == WEATHER
-  res = weather_read(&datum);
-#else
+  res = weather_read(&datum, elapsed);
+#endif
+
+#if MODULE == BUTTON
+  res = button_read(&datum);
+#endif
+
+#if MODULE == NOSENSOR
   datum->stx = STX;
   datum->id = 0;
   datum->dt = NULL;
@@ -389,29 +407,29 @@ void OnNewGatewayAddress(uint8_t *ga, String ad)
 }
 
 /*
-void OnConnected(uint8_t *ga, String ad)
-{
-#ifdef DEBUG
+  void OnConnected(uint8_t *ga, String ad)
+  {
+  #ifdef DEBUG
   Serial.println("[DEBUG] onConnected"); Serial.print(ad);
-#endif
-}
+  #endif
+  }
 
-void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
-{
-#ifdef DEBUG
+  void OnMessage(uint8_t* ad, const uint8_t* message, size_t len)
+  {
+  #ifdef DEBUG
   Serial.print("[DEBUG] OnMessage from "); Serial.println((char *)ad);
   Serial.println((char *)message);
-#endif
-}
+  #endif
+  }
 
-void OnPaired(uint8_t *ga, String ad)
-{
-#ifdef DEBUG
+  void OnPaired(uint8_t *ga, String ad)
+  {
+  #ifdef DEBUG
   Serial.println("[DEBUG] OnPaired, server '" + ad + " paired! ");
-#endif
+  #endif
 
   ConnectInUse = ESPNOW;
   ConnectEsp.endPairing();
-}
+  }
 
 */

@@ -33,43 +33,44 @@ Serial.print("Size array: ");Serial.println(sizeof(*datum) / sizeof(SensoriandoS
     return res;
 }
 
-int weather_read(SensoriandoSensorDatum **datum) 
+int weather_read(SensoriandoSensorDatum **datum, long *elapsed) 
 {
     byte temperature, humidity;  
     int res=0;
     int dht11;
-    int i;
 
-
+    if ( (millis() - (*elapsed)) > UPDATEELAPSED ) {
+        *elapsed = millis();
+ 
 #ifdef DEBUG_WEATHER
 Serial.println("[DEBUG WEATHER] Weather read...");
 #endif
 
-    SimpleDHT11 dht(GPIO_WEATHER);
-    dht11 = dht.read(&temperature, &humidity, NULL);
+        SimpleDHT11 dht(GPIO_WEATHER);
+        dht11 = dht.read(&temperature, &humidity, NULL);
 
-    if (dht11 == SimpleDHTErrSuccess) {
+        if (dht11 == SimpleDHTErrSuccess) {
 #ifdef DEBUG_WEATHER
 Serial.print("[DEBUG WEATHER] ");
 Serial.print(temperature);Serial.print(" *C, ");
 Serial.print(humidity); Serial.println(" %");
 #endif
 
-        for (i=0; i<WEATHER_LEN; i++) {
-            switch ( i ) {
-                case 0: (*datum + i)->id = TEMPERATURE_ID;
-                        (*datum + i)->value = KELVIN(temperature);
-                        res++;
-                        break;
-                case 1: (*datum + i)->id = HUMIDITY_ID;
-                        (*datum + i)->value = humidity;
-                        res++;
-                        break;
-                default: res=0;
-                         break;
-            }
-        }        
-    } else {
+            for (int i=0; i<WEATHER_LEN; i++) {
+                switch ( i ) {
+                    case 0: (*datum + i)->id = TEMPERATURE_ID;
+                            (*datum + i)->value = KELVIN(temperature);
+                            res++;
+                            break;
+                    case 1: (*datum + i)->id = HUMIDITY_ID;
+                            (*datum + i)->value = humidity;
+                            res++;
+                            break;
+                    default:    res=0;
+                                break;
+                }
+            }        
+        } else {
 #ifdef DEBUG_WEATHER
 Serial.print("[DEBUG WEATHER] ");
 
@@ -85,9 +86,8 @@ switch (dht11) {
   default: Serial.print("Error code: ");Serial.println(dht11);break;
 }
 #endif
-
-
-    }
+        }
+   }
 
     return res;
 }

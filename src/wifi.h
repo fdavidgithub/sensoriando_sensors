@@ -28,7 +28,7 @@ typedef WiFiManager wifi_connection;
  * Prototypes
  */
 void wifi_reset(wifi_connection *);
-byte wifi_init(wifi_connection *);
+byte wifi_init(wifi_connection *, uint8_t *);
 byte wifi_send(SensoriandoObj *, SensoriandoSensorDatum *);
 byte wifi_connected();
 

@@ -17,6 +17,7 @@
  */
 //#define DEBUG_WEATHER
 #define KELVIN(x)       ((x) + 273.15)
+#define UPDATEELAPSED   1500
 
 //Uniques for each hardware compiled
 #define WEATHER_LEN     2                                       //Account of sensors  
@@ -28,7 +29,7 @@
  * Prototypes
  */
 int weather_init(SensoriandoSensorDatum **, char *);
-int weather_read(SensoriandoSensorDatum **);
+int weather_read(SensoriandoSensorDatum **, long *);
 
 #endif
 

@@ -10,18 +10,17 @@ byte wifi_connected()
     return WiFi.status() == WL_CONNECTED;
 }
 
-byte wifi_init(wifi_connection *conn)
+byte wifi_init(wifi_connection *conn, uint8_t *mac)
 {
     char namedevice[30] = PREFIXAPMODE;
-    byte mac[6];
-    int i;
+
 
     /*
      * Start AP mode 
      */
     WiFi.macAddress(mac);
 
-    for (i=0; i<sizeof(mac); i++) {
+    for (int i=0; i<sizeof(mac); i++) {
         sprintf(namedevice, "%s%02X", namedevice, mac[i]);
     }
 

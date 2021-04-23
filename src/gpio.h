@@ -24,6 +24,7 @@
  * Interface: Digital
  */
 #define GPIO_WEATHER    2   //GPIO ESP8266 (NODEMCU pin D4)
+#define GPIO_BUTTON     2
 
 #endif
 
