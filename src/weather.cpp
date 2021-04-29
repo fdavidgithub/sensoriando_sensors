@@ -58,13 +58,18 @@ Serial.print(humidity); Serial.println(" %");
 
             for (int i=0; i<WEATHER_LEN; i++) {
                 switch ( i ) {
-                    case 0: (*datum + i)->id = TEMPERATURE_ID;
-                            (*datum + i)->value = KELVIN(temperature);
-                            res++;
+                    //Send only current value is different of last value
+                    case 0: //if ( KELVIN(temperature) != (*datum + i)->value ) {
+                                (*datum + i)->id = TEMPERATURE_ID;
+                                (*datum + i)->value = KELVIN(temperature);
+                                res++;
+                            //}
                             break;
-                    case 1: (*datum + i)->id = HUMIDITY_ID;
-                            (*datum + i)->value = humidity;
-                            res++;
+                    case 1: //if ( humidity != (*datum + i)->value ) {
+                                (*datum + i)->id = HUMIDITY_ID;
+                                (*datum + i)->value = humidity;
+                                res++;
+                            //}    
                             break;
                     default:    res=0;
                                 break;

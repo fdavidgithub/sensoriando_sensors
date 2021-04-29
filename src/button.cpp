@@ -28,7 +28,7 @@ Serial.print("Size array: ");Serial.println(sizeof(*datum) / sizeof(SensoriandoS
         strcpy((*datum)->uuid, uuid);
     }
 
-    pinMode(GPIO_BUTTON, INPUT);
+    pinMode(GPIO_BUTTON, INPUT_PULLUP);
 
     return res;
 }

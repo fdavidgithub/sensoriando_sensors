@@ -29,7 +29,7 @@
 /*
    MACROS
 */
-#define DEBUG
+//#define DEBUG
 #define DIGITALREAD   !digitalRead
 
 //Operation mode

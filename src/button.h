@@ -15,7 +15,7 @@
  * MACROS
  */
 #define DEBUG_BUTTON
-#define DEBOUNCE        50
+#define DEBOUNCE        100
 #define DIGITALREAD     !digitalRead
  
 //Uniques for each hardware compiled

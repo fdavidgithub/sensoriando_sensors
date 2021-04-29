@@ -8,7 +8,7 @@
 void setup()
 {
     Serial.begin(115200);
-    pinMode(GPIO_BUTTON, INPUT);
+    pinMode(GPIO_BUTTON, INPUT_PULLUP);
 }
 
 void loop()
