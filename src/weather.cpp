@@ -46,7 +46,7 @@ int weather_read(SensoriandoSensorDatum **datum, long *elapsed)
 Serial.println("[DEBUG WEATHER] Weather read...");
 #endif
 
-        SimpleDHT11 dht(GPIO_WEATHER);
+        SimpleDHT11 dht(GPIO_DATA);
         dht11 = dht.read(&temperature, &humidity, NULL);
 
         if (dht11 == SimpleDHTErrSuccess) {
@@ -58,19 +58,14 @@ Serial.print(humidity); Serial.println(" %");
 
             for (int i=0; i<WEATHER_LEN; i++) {
                 switch ( i ) {
-                    //Send only current value is different of last value
-                    case 0: //if ( KELVIN(temperature) != (*datum + i)->value ) {
-                                (*datum + i)->id = TEMPERATURE_ID;
+                    case 0:     (*datum + i)->id = TEMPERATURE_ID;
                                 (*datum + i)->value = KELVIN(temperature);
                                 res++;
-                            //}
-                            break;
-                    case 1: //if ( humidity != (*datum + i)->value ) {
-                                (*datum + i)->id = HUMIDITY_ID;
+                                break;
+                    case 1:     (*datum + i)->id = HUMIDITY_ID;
                                 (*datum + i)->value = humidity;
                                 res++;
-                            //}    
-                            break;
+                                break;
                     default:    res=0;
                                 break;
                 }
