@@ -153,7 +153,7 @@ byte espnow_init(espnow_connection *conn, \
 
     //Setting ESPNow
     conn->begin();
-    conn->setPairingBlinkPort(GPIO_PAIR);
+    conn->setPairingBlinkPort(GPIO_CONFIG);
 //    conn->onMessage(m);
 //    conn->onPaired(p);
     conn->onPairingFinished(pf);

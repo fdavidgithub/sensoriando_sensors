@@ -19,6 +19,7 @@ byte wifi_init(wifi_connection *conn, uint8_t *mac)
      * Start AP mode 
      */
     WiFi.macAddress(mac);
+    conn->setTimeout(MODEAP_TIMEOUT);
 
     for (int i=0; i<sizeof(mac); i++) {
         sprintf(namedevice, "%s%02X", namedevice, mac[i]);

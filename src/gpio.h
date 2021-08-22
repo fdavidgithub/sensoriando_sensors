@@ -4,12 +4,9 @@
 #ifndef GPIO_H
 #define GPIO_H
 
-#define GPIO_CONFIG     0           //GPIO ESP8266 (NODEMCU Pin D3)
-#define GPIO_PAIR       BUILTIN_LED //GPIO ESP8266 (NODEMCU Pin D4) 
-
 
 /*
- * For the I²C bus
+ * Pins for the I²C bus
  *                  | Arduino UNO   | Arduino MEGA  | ESP-12E   | ESP-01 
  *-----------------------------------------------------------------------
  * SDA: Data line   | A4            | 22            | GPIO04    | GPIO0 
@@ -20,11 +17,23 @@
 
 
 /*
- * Data
- * Interface: Digital
+ * Pins for analog
+ *                  | Arduino UNO   | Arduino MEGA  | ESP-12E   | ESP-01 
+ *-----------------------------------------------------------------------
+ * ADC              | A0            | A0            | A0        | --- 
  */
-#define GPIO_WEATHER    2   //GPIO ESP8266 (NODEMCU pin D4)
-#define GPIO_BUTTON     2
+#define GPIO_ADC        A0
+
+
+/*
+ * Digital
+ */
+#define GPIO_DATA       2   //GPIO ESP8266 (NODEMCU pin D4)
+#define GPIO_WAKE       16  //return of deep leep
+#define GPIO_ERROR      12
+#define GPIO_CONFIG     13
+#define GPIO_SELECT     0   //select type connect  
+
 
 #endif
 

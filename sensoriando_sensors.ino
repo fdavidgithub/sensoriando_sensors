@@ -1,4 +1,4 @@
-/*
+ /*
    Read sensors and send to Sensoriando_Hub
 
    Build with IDE Arduino 1.8.12
@@ -27,15 +27,14 @@
 
 
 /*
-   MACROS
-*/
-//#define DEBUG
+ *  MACROS
+ */
+#define DEBUG
 #define DIGITALREAD   !digitalRead
 
 //Operation mode
 #define NOSENSOR    0x00    //Random values
 #define WEATHER     0x01    //Temperature and humidity of air
-#define BUTTON      0x02    //State of button
 
 //Configure module
 #define DEBOUNCE        300
@@ -46,20 +45,20 @@
 
 //Need send this block to compile param
 #define UUID    "e8989226-9475-4c09-8e53-77f759223a6d"
-#define MODULE  WEATHER
+#define MODULE  NOSENSOR//WEATHER
 
 #if MODULE == WEATHER
 #include "src/weather.h"
 #endif
 
-#if MODULE == BUTTON
-#include "src/button.h"
+#if MODULE == NOSENSOR
+#include "src/random.h"
 #endif
 
 
 /*
-   GlobalVariable
-*/
+ * GlobalVariable
+ */
 enum ConnectMode {NONE, ESPNOW, WIFI};
 
 //Wifi
@@ -73,13 +72,14 @@ espnow_connection ConnectEsp(SimpleEspNowRole::CLIENT);
 
 //BOTH (wifi and esp)
 SensoriandoSensorDatum *datum;
+SensoriandoSensorDatum *last_datum;
 int ConnectInUse = NONE;
 int ErrSendCounter = 0;
 
 
 /*
-   Prototypes
-*/
+ * Prototypes
+ */
 int ReadSensor(long *);
 int RandomSensor();
 byte DatumSend(SensoriandoSensorDatum *);
@@ -95,22 +95,30 @@ void OnPairingFinished();
 
 
 /*
-   Main Program
-*/
+ *  Main Program
+ */
 void setup()
 {
   ESP.wdtEnable(WDT);
 
   //Setting pins
-  pinMode(GPIO_CONFIG, INPUT);
+  pinMode(GPIO_SELECT, INPUT);
+  pinMode(GPIO_ERROR, OUTPUT);
+  pinMode(GPIO_CONFIG, OUTPUT);
 
+  digitalWrite(GPIO_ERROR, 0);
+  digitalWrite(GPIO_CONFIG, 1);
+  
   //Serial baudrate
 #ifdef DEBUG
   Serial.begin(115200);
   Serial.println("[DEBUG MODE]");
 #endif
 
-  //Connection (1st Try ESPNow)
+  /*
+   * Connections 
+   */
+  //1st Try ESPNow
 #ifdef DEBUG
   Serial.println("[DEBUG] Try EspNow Connection...");
 #endif
@@ -139,28 +147,28 @@ void setup()
   }
 #endif
 
-#if MODULE == BUTTON
-  if ( ! button_init(&datum, UUID) ) {
-    ESP.reset();
-  }
-#endif
-
 #if MODULE == NOSENSOR
-  if ( ! RandomSensor() ) {
+  if ( ! random_init(&datum, UUID) ) {
     ESP.reset();
   }
 #endif
 
+  last_datum = (SensoriandoSensorDatum *)malloc(sizeof(datum));
+
+  //Connection
   if ( ! ConnectInUse ) {
 #ifdef DEBUG
     Serial.println("[DEBUG] Without Connection!");
 #endif
+    digitalWrite(GPIO_ERROR, 1);
   } else {
 #ifdef DEBUG
     Serial.println("[DEBUG] Waiting for sensor...");
 #endif
+    digitalWrite(GPIO_ERROR, 0);
   }
 
+  digitalWrite(GPIO_CONFIG, 0);
 }
 
 void loop()
@@ -169,7 +177,11 @@ void loop()
   static long config_elapsed;
   static long update_elapsed = millis();
 
-  if  ( DIGITALREAD(GPIO_CONFIG) ) {
+  
+  /*
+   * Operation mode
+   */
+  if  ( DIGITALREAD(GPIO_SELECT) ) {
     if ( ((millis() - config_elapsed) > TIMEPAIR) && ConnectInUse ) {
       if ( espnow_pair(&ConnectEsp) ) {
 #ifdef DEBUG
@@ -196,8 +208,13 @@ void loop()
     config_elapsed = millis();
   }
 
-  if ( (ConnectInUse == ESPNOW) || (ConnectInUse == NONE) ) {
-    ConnectEsp.loop();
+  switch ( ConnectInUse ) {
+    case ESPNOW:    ConnectEsp.loop(); 
+                    break;
+    case NONE:      ConnectEsp.loop();
+                    break;
+    case WIFI:      Broker.loop();
+                    break;    
   }
 
 #ifdef DEBUG
@@ -210,8 +227,12 @@ void loop()
   }
 #endif
 
-  sensors = ReadSensor(&update_elapsed);
 
+  /*
+   * Publisher
+   */
+  sensors = ReadSensor(&update_elapsed);
+  
   if ( sensors && ConnectInUse ) {
     switch ( ConnectInUse ) {
       case ESPNOW: if ( !espnow_connected(&ConnectEsp) ) {
@@ -246,9 +267,19 @@ void loop()
     for (int i = 0; i < sensors; i++) {
 #ifdef DEBUG
       Serial.printf("[DEBUG] id %d | value %f\n", (datum)[i].id, (datum)[i].value);
-#endif
+#endif      
 
+      if (last_datum[i].value == datum[i].value) {
+#ifdef DEBUG
+      Serial.printf("[DEBUG] SOME VALUE, SKIP\n");
+#endif      
+
+        continue;
+      }
+        
       if ( DatumSend(&((datum)[i])) ) {
+        last_datum[i].value = datum[i].value;
+
 #ifdef DEBUG
         Serial.printf("[DEBUG] Sent datum from sensor %d\n", i);
 #endif
@@ -285,32 +316,36 @@ void SetConnWifi()
 #ifdef DEBUG
       Serial.println("[DEBUG] Broker do not init");
 #endif
+        digitalWrite(GPIO_ERROR, 1);
     } else {
 #ifdef DEBUG
       Serial.println("[DEBUG] Broker connected");
 #endif
+        digitalWrite(GPIO_ERROR, 0);
     }
   }
 }
 
 byte DatumSend(SensoriandoSensorDatum *datum)
 {
-  byte res;
+    byte res;
 
-  switch ( ConnectInUse ) {
-    case ESPNOW:  res = espnow_send(&ConnectEsp, datum);
-      break;
-    case WIFI:    res = wifi_send(&Broker, datum);
-      break;
-    default:      res = 0;
-      break;
-  }
+    switch ( ConnectInUse ) {
+        case ESPNOW:    res = espnow_send(&ConnectEsp, datum);
+                        break;
+        case WIFI:      res = wifi_send(&Broker, datum);
+                        break;
+        default:        res = 0;
+                        break;
+    }
 
+    digitalWrite(GPIO_ERROR, !res);
+    
 #ifdef DEBUG
-  Serial.printf("[DEBUG] Datum Send Result %d\n", res);
+    Serial.printf("[DEBUG] Datum Send Result %d\n", res);
 #endif
 
-  return res;
+    return res;
 }
 
 int RandomSensor()
@@ -327,20 +362,22 @@ int ReadSensor(long *elapsed)
   res = weather_read(&datum, elapsed);
 #endif
 
-#if MODULE == BUTTON
-  res = button_read(&datum);
-#endif
-
 #if MODULE == NOSENSOR
-  datum->stx = STX;
-  datum->id = 0;
-  datum->dt = NULL;
-  strcpy(datum->uuid, "00000000-0000-0000-0000-000000000000"); //UUID not existed
-  datum->value = random(1, 100) / PI;
-  datum->etx = ETX;
-
-  res = 1;
+  res = random_read(&datum, elapsed);
 #endif
+/*
+  if ((millis() - (*elapsed)) > 2000) {
+    datum->stx = STX;
+    datum->id = 0;
+    datum->dt = NULL;
+    strcpy(datum->uuid, "00000000-0000-0000-0000-000000000000"); //UUID not existed
+    datum->value = random(1, 100) / PI;
+    datum->etx = ETX;
+  
+    res = 1;
+    *elapsed = millis();
+  }
+*/
 
 #ifdef DEBUG
   for (int i = 0; i < res; i++) {
@@ -350,7 +387,7 @@ int ReadSensor(long *elapsed)
     Serial.printf("stx=0x%02X, id=%d, value=%02f, etx=0x%02X\n", datum[i].stx, datum[i].id, datum[i].value, datum[i].etx);
   }
 #endif
-
+  
   return res;
 }
 

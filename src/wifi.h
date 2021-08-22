@@ -15,7 +15,8 @@
  * MACROS
  */
 #define DEBUG_WIFI
-#define PREFIXAPMODE  "Sensoriando"
+#define PREFIXAPMODE    "Sensoriando"
+#define MODEAP_TIMEOUT  300000  // 5 minutes 
 
 
 /*
