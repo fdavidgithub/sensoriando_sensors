@@ -44,16 +44,20 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define UUID    "e8989226-9475-4c09-8e53-77f759223a6d"
-#define MODULE  NOSENSOR//WEATHER
+#define MODULE  WEATHER
+
+#if MODULE == NOSENSOR
+#define UUID    "00000000-0000-0000-0000-000000000000"
+#include "src/random.h"
+#else
+//#define UUID    "e8989226-9475-4c09-8e53-77f759223a6d" //PCB
+#define UUID    "89be7a90-840e-4755-b232-22cc8f0e24f9" //Node
+#endif
 
 #if MODULE == WEATHER
 #include "src/weather.h"
 #endif
 
-#if MODULE == NOSENSOR
-#include "src/random.h"
-#endif
 
 
 /*
