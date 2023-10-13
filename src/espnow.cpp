@@ -8,10 +8,8 @@ bool espnow_writeconf(String serveraddress)
     
     if (!configfile)
         return false;
-
-#ifdef DEBUG_ESPNOW
-Serial.print("[DEBUG_ESPNOW] Write AD: ");Serial.println(serveraddress.c_str());
-#endif
+        
+    LOGGER_ESP("Write AD: %s", serveraddress.c_str());
 
     configfile.print(serveraddress.c_str());
     configfile.close();
@@ -26,10 +24,7 @@ bool espnow_readconf(String *serveraddress)
     char cf;
     char sd[13];
 
-#ifdef DEBUG_ESPNOW
-Serial.print("[DEBUG_ESPNOW] Trying read server address in config file: ");
-Serial.println(CONFIGFILE);
-#endif
+    LOGGER_ESP("Trying read server address in config file: %s", CONFIGFILE);
 
     // start SPIFFS file system. Ensure, sketch is uploaded with FS support !!!
     if ( ! SPIFFS.begin() ) {
@@ -37,18 +32,14 @@ Serial.println(CONFIGFILE);
     }
 
     if ( ! SPIFFS.exists(CONFIGFILE)) {
-#ifdef DEBUG_ESPNOW
-Serial.println("[DEBUG_ESPNOW] Config file not found");
-#endif
+        LOGGER_ESP("Config file not found");
         return false;
     }
 
     configfile = SPIFFS.open(CONFIGFILE, "r");
     
     if (!configfile) {
-#ifdef DEBUG_ESPNOW
-Serial.println("[DEBUG_ESPNOW] Do not can open config file");
-#endif
+        LOGGER_ESP("Do not can open config file");
         return false;
     }
 
@@ -56,18 +47,12 @@ Serial.println("[DEBUG_ESPNOW] Do not can open config file");
         cf = (char)configfile.read();
         sd[i] = cf;
 
-#ifdef DEBUG_ESPNOW
-Serial.print(cf);Serial.print("_");
-#endif
+        LOGGER_ESP("%c_", cf);
     }
 
     sd[i] = '\0';
     String str((char *)sd);
     *serveraddress = String((char *)sd);
-
-#ifdef DEBUG_ESPNOW
-Serial.println(str);
-#endif
 
     configfile.close();
     return true;
@@ -130,16 +115,9 @@ byte espnow_connected(espnow_connection *conn)
 
 void espnow_reset()
 {
-
-#ifdef DEBUG_ESPNOW
-Serial.print("[DEBUG_ESPNOW] Deleting config file...");
-#endif
-
+    LOGGER_ESP("Deleting config file...");
     SPIFFS.remove(CONFIGFILE);
-
-#ifdef DEBUG_ESPNOW
-Serial.println("OK");
-#endif
+    LOGGER_ESP("OK");
 } 
 
 byte espnow_init(espnow_connection *conn, \
@@ -162,29 +140,17 @@ byte espnow_init(espnow_connection *conn, \
     conn->onSendDone(sd);
 
     if ( ! espnow_readconf(&serveraddress) ) {
-#ifdef DEBUG_ESPNOW      
-Serial.println("[DEBUG_ESPNOW] Server address not saved");
-#endif
-      return res;
+        LOGGER_ESP("Server address not saved");
+        return res;
     } else {
-#ifdef DEBUG_ESPNOW
-Serial.println("[DEBUG_ESPNOW] Server address saved");
-#endif
+        LOGGER_ESP("Server address saved");
     }
 
     if ( ! conn->setServerMac(serveraddress) ) {// set the server address which is stored in EEPROM
-
-#ifdef DEBUG_ESPNOW
-Serial.println("!!! [DEBUG_ESPNOW] Connect NOT VALID. Please pair again !!!");
-#endif
-
+        LOGGER_ESP("Connect NOT VALID. Please pair again !!!");
     } else {
-
-#ifdef DEBUG_ESPNOW
-Serial.print("[DEBUG_ESPNOW] Server address connected: ");
-Serial.println(serveraddress);
-#endif
-
+        LOGGER_ESP("Server address connected: ");
+        //LOGGER_ESP(serveraddress);
         res=1;
     }
 

@@ -9,6 +9,7 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 #include <sensoriando.h>
+#include "log.h"
 
 
 /*
@@ -18,6 +19,11 @@
 #define PREFIXAPMODE    "Sensoriando"
 #define MODEAP_TIMEOUT  300000  // 5 minutes 
 
+#ifdef DEBUG_WIFI 
+#define LOGGER_WIF(string, ...)       logargs("WIFI", string, ##__VA_ARGS__)
+#else
+#define LOGGER_WIF(string, ...)       do {} while(0)
+#endif
 
 /*
  * Global Variables

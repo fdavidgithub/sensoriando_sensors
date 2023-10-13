@@ -28,11 +28,11 @@
 /*
  * Digital
  */
-#define GPIO_DATA       2   //GPIO ESP8266 (NODEMCU pin D4)
-#define GPIO_WAKE       16  //return of deep leep
-#define GPIO_ERROR      12
-#define GPIO_CONFIG     13
-#define GPIO_SELECT     0   //select type connect  
+#define GPIO_WAKE       16              //GPIO ESP3266 (NODEMCU pin D0)
+#define GPIO_ERROR      12              //GPIO ESP8266 (NODEMCU pin D6)
+#define GPIO_DATA       2               //GPIO ESP8266 (NODEMCU pin D4)
+#define GPIO_CONFIG     13              //GPIO ESP8266 (NODEMCU pin D7)
+#define GPIO_SELECT     0               //GPIO ESP8266 (NODEMCU pin D3) 
 
 
 #endif

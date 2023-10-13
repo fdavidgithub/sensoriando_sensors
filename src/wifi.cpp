@@ -26,11 +26,7 @@ byte wifi_init(wifi_connection *conn, uint8_t *mac)
     }
 
     if( ! conn->autoConnect(namedevice) ) {
-
-#ifdef DEBUG_WIFI
-Serial.println("[DEBUG_WIFI] Failed to connect or hit timeout");
-#endif
-
+        LOGGER_WIF("Failed to connect or hit timeout");
 //    WiFi.forceSleepBegin();
     } 
 

@@ -4,21 +4,18 @@ int random_init(SensoriandoSensorDatum **datum, char *uuid)
 {
     byte res;
 
-#ifdef DEBUG_RANDOM
-Serial.print(RANDOM_LEN * sizeof(*datum));
-Serial.println("[DEBUG RANDOM] Random init...");
-#endif
+    pinMode(GPIO_DATA, OUTPUT);
+    LOGGER_RAN("Lenght: %i", RANDOM_LEN * sizeof(*datum));
+    LOGGER_RAN("Random init...");
 
     *datum = (SensoriandoSensorDatum *)malloc(RANDOM_LEN * sizeof(SensoriandoSensorDatum));
     res = *datum != NULL;
 
     if ( res ) {
-#ifdef DEBUG_RANDOM
-Serial.println("[DEBUG RANDOM] Memory allocated...");
-Serial.print("Size struct: ");Serial.println(sizeof(SensoriandoSensorDatum));
-Serial.print("Size alloc: ");Serial.println(sizeof(*datum));
-Serial.print("Size array: ");Serial.println(sizeof(*datum) / sizeof(SensoriandoSensorDatum));
-#endif
+        LOGGER_RAN("Memory allocated...");
+        LOGGER_RAN("Size struct: %i", sizeof(SensoriandoSensorDatum));
+        LOGGER_RAN("Size alloc: %i", sizeof(*datum));
+        LOGGER_RAN("Size array: %i", sizeof(*datum) / sizeof(SensoriandoSensorDatum));
 
         for (int i = 0; i < RANDOM_LEN; i++) {
             (*datum + i)->stx = STX;
@@ -39,19 +36,14 @@ int random_read(SensoriandoSensorDatum **datum, long *elapsed)
     int res=0;
 
     if ( (millis() - (*elapsed)) > UPDATEELAPSED ) {
+        digitalWrite(GPIO_DATA, 1);
         *elapsed = millis();
  
-#ifdef DEBUG_RANDOM
-Serial.println("[DEBUG RANDOM] Random read...");
-#endif
-
+        LOGGER_RAN("Random read...");
         value = random(1, 100) / PI;
 
         if ( value ) {
-#ifdef DEBUG_RANDOM
-Serial.print("[DEBUG RANDOM] ");
-Serial.println(random);
-#endif
+            LOGGER_RAN("Value %f", value);
 
             for (int i=0; i<RANDOM_LEN; i++) {
                 switch ( i ) {
@@ -64,12 +56,11 @@ Serial.println(random);
                 }
             }        
         } else {
-#ifdef DEBUG_RANDOM
-Serial.print("[DEBUG RANDOM] ERROR");
-#endif
+            LOGGER_RAN("Value ERROR");
         }
-   }
+    }
 
+    digitalWrite(GPIO_DATA, 0);
     return res;
 }
 
