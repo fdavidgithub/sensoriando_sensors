@@ -9,7 +9,9 @@
    REQUIREMENT COMPILE
    1x Board NodeMCU
       Tools>>Board>>Board Manager (esp8266 by ESP8266 Community v2.7.1)
-      Tools>>Board (NodeMCU 1.0)
+
+   NodeMCU ESP8266 Tools>>Board (NodeMCU 1.0)
+   Module ESP8266  Tools>>Board (Generic 8266 Module)   
 
    Libraries (Sketch >> Include Library >> Manage Libraies)
       Sensoriando             by Francis David      v1.0.0
