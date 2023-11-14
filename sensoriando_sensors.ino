@@ -12,12 +12,14 @@
       Tools>>Board (NodeMCU 1.0)
 
    Libraries (Sketch >> Include Library >> Manage Libraies)
-      Sensoriando       by Francis David      v1.0.0
-      SimplesEspNow     by                    v
-      WifiManager       by                    v
+      Sensoriando             by Francis David      v1.0.0
+      SimpleEspNowConnection  by Erich O.Pintar     v1.2.0
+      SimpleDHT               by Winlin             v1.0.15
+      WifiManager             by tzapu              v2.0.16
 
 
 */
+#include <Arduino.h>
 #include <sensoriando.h>
 
 #include "src/log.h"
@@ -25,7 +27,7 @@
 #include "src/messages.h"
 #include "src/wifi.h"
 #include "src/espnow.h"
-
+#include "src/settings.h"
 
 /*
  *  MACROS
@@ -51,8 +53,7 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define MODULE          RANDOM
-#define UUID            "89be7a90-840e-4755-b232-22cc8f0e24f9"
+#define MODULE          ENVIRONMENT
 
 
 /* 
@@ -96,9 +97,8 @@ int ErrSendCounter = 0;
  * Prototypes
  */
 int ReadSensor(long *);
-int RandomSensor();
 byte DatumSend(SensoriandoSensorDatum *);
-void SetConnWifi();
+void SetConnWifi(char*, char*);
 
 void OnSendDone(uint8_t *);
 void OnSendError(uint8_t *);
@@ -114,6 +114,12 @@ void OnPairingFinished();
  */
 void setup()
 {
+  File settings_file;
+  char* uuid = NULL; 
+  char* brokerUser = NULL;
+  char* brokerPass = NULL;
+  
+  //Watch Dog Timer
   ESP.wdtEnable(WDT);
 
   //Setting pins
@@ -126,28 +132,87 @@ void setup()
  
   //Serial baudrate
   Serial.begin(115200);
+  delay(1000);
   LOGGER("DEBUG MODE");
 
 
   /*
-   * Connections 
+   * Environment settings 
    */
+  settings_open(settings_file);
+    
+  if ( settings_file ) {
+    uuid = settings_string(settings_file, "uuid");
+   
+    if ( !uuid ) { 
+      LOGGER("Environment UUID is empty");
+    }
+
+    brokerUser = settings_string(settings_file, "username");
+   
+    if ( !brokerUser ) { 
+      LOGGER("Environment broker username is empty");
+    }
+
+    brokerPass = settings_string(settings_file, "password");
+   
+    if ( !brokerPass ) { 
+      LOGGER("Environment broker password is empty");
+    }
+
+    settings_close(settings_file);
+  } else {
+    LOGGER("ATTENTION: Environment file not found");
+  }
+
+
+  /* 
+   * Settings
+   */
+  if ( uuid ) {
+    LOGGER("UUID %s", uuid);
+  } else {
+    digitalWrite(GPIO_ERROR, 1);
+    delay(TIMERESET);
+    ESP.reset();
+  }
+
+  if ( brokerUser ) {
+    LOGGER("Broker user %s", brokerUser);
+  } else {
+    digitalWrite(GPIO_ERROR, 1);
+    delay(TIMERESET);
+    ESP.reset();
+  }
+
+  if ( brokerPass ) {
+    LOGGER("Broker pass %s", brokerPass);
+  } else {
+    digitalWrite(GPIO_ERROR, 1);
+    delay(TIMERESET);
+    ESP.reset();
+  }
+
+  
+  /*
+   * Connections 
+   *
   //1st Try ESPNow
   LOGGER("Try EspNow Connection...");
 
   if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
                    &OnNewGatewayAddress, &OnPairingFinished) ) {
     ConnectInUse = ESPNOW;
-  } else {
+  } else {*/
     LOGGER("Try Wifi Connection...");
     LOGGER("MAC Address: ");
     //LOGGER(WiFi.macAddress());
 
-    SetConnWifi();
-  }
+    SetConnWifi(brokerUser, brokerPass);
+  //}
 
   //Sensor
-  if ( ! sensor_init(&datum, UUID) ) {
+  if ( ! sensor_init(&datum, uuid) ) {
     ESP.reset();
   }
 
@@ -276,13 +341,13 @@ void loop()
 /*
    functions
 */
-void SetConnWifi()
+void SetConnWifi(char* brokerUser, char* brokerPass)
 {
   if ( wifi_init(&ConnectWifi, MacAddress) ) {
     ConnectInUse = WIFI;
 
     //Sensoriando
-    if ( !sensoriandoInit(&Broker, MacAddress) ) {
+    if ( !sensoriandoInit(&Broker, MacAddress, brokerUser, brokerPass) ) {
         LOGGER("Broker do not init");
         digitalWrite(GPIO_ERROR, 1);
     } else {
@@ -309,12 +374,6 @@ byte DatumSend(SensoriandoSensorDatum *datum)
     LOGGER("Datum Send Result %d", res);
 
     return res;
-}
-
-int RandomSensor()
-{
-    datum = (SensoriandoSensorDatum *)malloc(sizeof(SensoriandoSensorDatum));
-    return datum != NULL;
 }
 
 int ReadSensor(long *elapsed)
