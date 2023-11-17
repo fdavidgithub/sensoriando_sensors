@@ -22,8 +22,8 @@
 
 //Uniques for each hardware compiled
 #define ENVIRONMENT_LEN     2                                       //Account of sensors  
-#define TEMPERATURE_ID  5                                       //id of temperature
-#define HUMIDITY_ID     6                                       //id of himidity
+#define TEMPERATURE_ID  6                                       //id of temperature
+#define HUMIDITY_ID     16                                       //id of himidity
 
 #ifdef DEBUG_ENVIRONMENT
 #define LOGGER_ENV(string, ...)       logargs("ENVIRONMENT", string, ##__VA_ARGS__)
