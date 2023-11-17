@@ -34,7 +34,7 @@
 /*
  *  MACROS
  */
-#define DEBUG
+//#define DEBUG
 #define DIGITALREAD     !digitalRead
 
 #ifdef DEBUG 
@@ -133,8 +133,10 @@ void setup()
   digitalWrite(GPIO_CONFIG, 1);
  
   //Serial baudrate
-  Serial.begin(115200);
-  delay(1000);
+  #ifdef DEBUG 
+    Serial.begin(115200);
+  #endif
+
   LOGGER("DEBUG MODE");
 
 
