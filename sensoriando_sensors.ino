@@ -34,7 +34,7 @@
 /*
  *  MACROS
  */
-//#define DEBUG
+#define DEBUG
 #define DIGITALREAD     !digitalRead
 
 #ifdef DEBUG 
@@ -55,7 +55,7 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define MODULE          ENVIRONMENT
+#define MODULE          NOSENSOR
 
 
 /* 
@@ -121,7 +121,7 @@ void setup()
   char* brokerUser = NULL;
   char* brokerPass = NULL;
   
-  //Watch Dog Timer
+  //Setting WatchDog
   ESP.wdtEnable(WDT);
 
   //Setting pins
@@ -135,13 +135,12 @@ void setup()
   //Serial baudrate
   #ifdef DEBUG 
     Serial.begin(115200);
+    LOGGER("DEBUG MODE");
   #endif
-
-  LOGGER("DEBUG MODE");
 
 
   /*
-   * Environment settings 
+   * Loading settings 
    */
   settings_open(settings_file);
     
@@ -197,13 +196,24 @@ void setup()
     ESP.reset();
   }
 
-  
+
+  /*
+   * Sensors
+   */
+  if ( ! sensor_init(&datum, uuid) ) {
+    LOGGER("Sensors do not init");
+    ESP.reset();
+  }
+
+  last_datum = (SensoriandoSensorDatum *)malloc(sizeof(datum));
+
+   
   /*
    * Connections 
-   *
+   */
   //1st Try ESPNow
   LOGGER("Try EspNow Connection...");
-
+/*
   if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
                    &OnNewGatewayAddress, &OnPairingFinished) ) {
     ConnectInUse = ESPNOW;
@@ -215,22 +225,19 @@ void setup()
     SetConnWifi(brokerUser, brokerPass);
   //}
 
-  //Sensor
-  if ( ! sensor_init(&datum, uuid) ) {
-    ESP.reset();
-  }
-
-  last_datum = (SensoriandoSensorDatum *)malloc(sizeof(datum));
-
-  //Connection
+  //Check connection
   if ( ! ConnectInUse ) {
     LOGGER("Without Connection!");
     digitalWrite(GPIO_ERROR, 1);
   } else {
-    LOGGER("Waiting for sensor...");
+    LOGGER("Waiting for data...");
     digitalWrite(GPIO_ERROR, 0);
   }
 
+
+  /*
+   * End Setup
+   */
   digitalWrite(GPIO_CONFIG, 0);
 }
 
@@ -375,7 +382,7 @@ byte DatumSend(SensoriandoSensorDatum *datum)
     }
 
     digitalWrite(GPIO_ERROR, !res);
-    LOGGER("Datum Send Result %d", res);
+    LOGGER("Connected: %i, datum send result %d", ConnectInUse, res);
 
     return res;
 }
@@ -389,13 +396,11 @@ int ReadSensor(long *elapsed)
         LOGGER("Sensor read...");
     }
 
-#ifdef DEBUG
     for (int i = 0; i < res; i++) {
         LOGGER("Bytes sent: %i", sizeof(SensoriandoSensorDatum));
         LOGGER("UUID: %s", datum[i].uuid);
         LOGGER("stx=0x%02X, id=%d, value=%02f, etx=0x%02X", datum[i].stx, datum[i].id, datum[i].value, datum[i].etx);
     }
-#endif
   
     return res;
 }
