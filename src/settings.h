@@ -36,6 +36,8 @@
 void settings_open(File&);
 char* settings_string(File&, char*);
 void settings_close(File&);
+void settings_list(const char*);
+int settings_checkMesh();
 
 #endif
 

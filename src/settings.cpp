@@ -1,5 +1,21 @@
 #include "settings.h"
 
+void settings_list(const char* dirname) {
+  LOGGER_SET("Arquivos no diretorio: %s", dirname);
+
+  File root = LittleFS.open(dirname, "r");
+  if (!root) {
+    LOGGER_SET("Nao foi possivel abrir o diretorio");
+    return;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    LOGGER_SET("%s", file.name());
+    file = root.openNextFile();
+  }
+}
+
 void settings_close(File& file)
 {
     file.close();

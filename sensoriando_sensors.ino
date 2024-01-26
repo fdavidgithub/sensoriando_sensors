@@ -1,5 +1,5 @@
  /*
-   Read sensors and send to Sensoriando_Hub
+   Read sensors and send via Wifi or Mesh network
 
    Build with IDE Arduino 1.8.12
    Addicional Board Manager (File >> Preferences)
@@ -21,15 +21,16 @@
 
 
 */
-#include <Arduino.h>
+#include <Arduino.h>    
 #include <sensoriando.h>
 
 #include "src/log.h"
 #include "src/gpio.h"
 #include "src/messages.h"
 #include "src/wifi.h"
-#include "src/espnow.h"
 #include "src/settings.h"
+#include "src/espnow.h"
+
 
 /*
  *  MACROS
@@ -49,13 +50,13 @@
 
 //Configure module
 #define DEBOUNCE        300
-#define TIMERESET       5000   //default 5000 -> 5 seconds in miliseconds
-#define TIMEPAIR        500
-#define WDT             3000
+#define TIMERESET       5000   //example 5000 -> 5 seconds in miliseconds
+#define TIMEPAIR        1000
+#define WDT             (TIMERESET + TIMEPAIR + DEBOUNCE) * 1000 //value in microseconds
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define MODULE          NOSENSOR
+#define MODULE          ENVIRONMENT
 
 
 /* 
@@ -77,7 +78,8 @@ int (*sensor_read)(SensoriandoSensorDatum **, long *) = environment_read;
 /*
  * GlobalVariable
  */
-enum ConnectMode {NONE, ESPNOW, WIFI};
+enum ConnectMode {NONE, WIFI, ESPNOW};
+enum ConfigMode {NORMAL, PAIR};
 
 //Wifi
 wifi_connection ConnectWifi;
@@ -85,13 +87,14 @@ WiFiClient EspClient;
 SensoriandoObj Broker(EspClient);
 uint8_t MacAddress[6];
 
-//EspNow
-espnow_connection ConnectEsp(SimpleEspNowRole::CLIENT);
+//Mesh
+esp_connection ConnectEsp(SimpleEspNowRole::CLIENT);
 
-//BOTH (wifi and esp)
+//BOTH (Wifi and Mesh)
 SensoriandoSensorDatum *datum;
 SensoriandoSensorDatum *last_datum;
 int ConnectInUse = NONE;
+int ConfigInUse = NORMAL;
 int ErrSendCounter = 0;
 
 
@@ -104,11 +107,12 @@ void SetConnWifi(char*, char*);
 
 void OnSendDone(uint8_t *);
 void OnSendError(uint8_t *);
-//void OnPaired(uint8_t *, String);
+void OnPaired(uint8_t *, String);
 void OnNewGatewayAddress(uint8_t *, String);
 //void OnConnected(uint8_t *, String);
 //void OnMessage(uint8_t *, const uint8_t *, size_t);
 void OnPairingFinished();
+
 
 
 /*
@@ -120,15 +124,21 @@ void setup()
   char* uuid = NULL; 
   char* brokerUser = NULL;
   char* brokerPass = NULL;
-  
-  //Setting WatchDog
+    
+
+  /*
+   * Start Setup
+   */
+  // WatchDog
+  ESP.wdtDisable();
   ESP.wdtEnable(WDT);
 
-  //Setting pins
+  // in/out pins 
   pinMode(GPIO_SELECT, INPUT);
   pinMode(GPIO_ERROR, OUTPUT);
   pinMode(GPIO_CONFIG, OUTPUT);
   
+  // Indicator LED
   digitalWrite(GPIO_ERROR, 0);
   digitalWrite(GPIO_CONFIG, 1);
  
@@ -168,10 +178,7 @@ void setup()
     LOGGER("ATTENTION: Environment file not found");
   }
 
-
-  /* 
-   * Settings
-   */
+  // show settings
   if ( uuid ) {
     LOGGER("UUID %s", uuid);
   } else {
@@ -196,7 +203,7 @@ void setup()
     ESP.reset();
   }
 
-
+  
   /*
    * Sensors
    */
@@ -209,21 +216,32 @@ void setup()
 
    
   /*
-   * Connections 
-   */
-  //1st Try ESPNow
-  LOGGER("Try EspNow Connection...");
-/*
-  if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
+   * Connection 
+   */         
+  if ( !ConnectInUse ) { 
+    LOGGER("Try Mesh Connection...");
+    
+    if ( espnow_init(&ConnectEsp, &OnSendError, &OnSendDone, \
                    &OnNewGatewayAddress, &OnPairingFinished) ) {
-    ConnectInUse = ESPNOW;
-  } else {*/
-    LOGGER("Try Wifi Connection...");
-    LOGGER("MAC Address: ");
-    //LOGGER(WiFi.macAddress());
+      ConnectInUse = ESPNOW;
+    } else {
+      LOGGER("Do not paried");
+    }
+  }
 
-    SetConnWifi(brokerUser, brokerPass);
-  //}
+  if ( !ConnectInUse ) {
+    LOGGER("Try Wifi Connection...");
+    
+    if ( wifi_init(&ConnectWifi, MacAddress) ) {
+      ConnectInUse = WIFI;
+      LOGGER("MAC Address: ");
+      //LOGGER(WiFi.macAddress());
+
+      SetConnWifi(brokerUser, brokerPass);
+    } else {
+      LOGGER("Do not configurated");
+    }
+  }
 
   //Check connection
   if ( ! ConnectInUse ) {
@@ -241,41 +259,47 @@ void setup()
   digitalWrite(GPIO_CONFIG, 0);
 }
 
+
 void loop()
 {
-  int sensors;
-  static long config_elapsed;
+  int sensors, diff_elapsed;
+  static long config_elapsed = 0;
   static long update_elapsed = millis();
-
+  
 
   /*
    * Operation mode
    */
-  if  ( DIGITALREAD(GPIO_SELECT) ) {
-    if ( ((millis() - config_elapsed) > TIMEPAIR) && ConnectInUse ) {
-      if ( espnow_pair(&ConnectEsp) ) {
-        LOGGER("Pairing...");
+  if ( DIGITALREAD(GPIO_SELECT) ) {    
+    diff_elapsed = (int)millis() - config_elapsed;
+    LOGGER("Pressed select button: %i", diff_elapsed);
 
-        ConnectInUse = NONE;
+    if ( (diff_elapsed > TIMEPAIR) && (ConfigInUse != PAIR) ) {  
+        if ( espnow_pair(&ConnectEsp) ) {
+          LOGGER("Pairing...");
+          digitalWrite(GPIO_CONFIG, 1);
+        } else {
+          LOGGER("Error while start pair!");
+        }
+
+        ConfigInUse = PAIR;
         delay(DEBOUNCE);
-      }
     }
 
-    if ( (millis() - config_elapsed) > TIMERESET ) {
-      LOGGER("Reseting...");
-
-      espnow_reset();
-      wifi_reset(&ConnectWifi);
-      delay(DEBOUNCE);
-
-      ESP.reset();
+    if ( diff_elapsed > TIMERESET ) { 
+        LOGGER("Reseting...");
+        espnow_reset();
+        wifi_reset(&ConnectWifi);
+      
+        delay(DEBOUNCE);
+        ESP.reset();
     }
   } else {
     config_elapsed = millis();
   }
 
   switch ( ConnectInUse ) {
-    case ESPNOW:    ConnectEsp.loop(); 
+    case ESPNOW:      ConnectEsp.loop(); 
                     break;
     case NONE:      ConnectEsp.loop();
                     break;
@@ -287,8 +311,9 @@ void loop()
   if ( Serial.available() ) {
     switch (Serial.read()) {
       case 'r': ESP.reset(); break;
-      case 'e': espnow_reset(); break;
+      case 'e': espnow_reset(); delay(5000); break;
       case 'w': wifi_reset(&ConnectWifi); break;
+      case 'l': settings_list("/"); delay(5000); break;
     }
   }
 #endif
@@ -299,10 +324,10 @@ void loop()
    */
   sensors = ReadSensor(&update_elapsed);
   
-  if ( sensors && ConnectInUse ) {
+  if ( sensors && ConnectInUse && !ConfigInUse ) {
     switch ( ConnectInUse ) {
       case ESPNOW: if ( !espnow_connected(&ConnectEsp) ) {
-          LOGGER("EspNow: Without connect, rebooting...");
+          LOGGER("Mesh: Without connect, rebooting...");
           ESP.reset();
         }
 
@@ -319,7 +344,7 @@ void loop()
         break;
       default: break;
     }
-
+    
     LOGGER("Sending data from %d sensors...", sensors);
 
     for (int i = 0; i < sensors; i++) {
@@ -341,7 +366,7 @@ void loop()
     }
 
     if ( (ErrSendCounter >= TRYSEND) ) {
-      LOGGER("Resetting");
+      LOGGER("MAIN: Many error on senting, resetting");
       ESP.reset();
     }
   }
@@ -354,9 +379,6 @@ void loop()
 */
 void SetConnWifi(char* brokerUser, char* brokerPass)
 {
-  if ( wifi_init(&ConnectWifi, MacAddress) ) {
-    ConnectInUse = WIFI;
-
     //Sensoriando
     if ( !sensoriandoInit(&Broker, MacAddress, brokerUser, brokerPass) ) {
         LOGGER("Broker do not init");
@@ -364,8 +386,7 @@ void SetConnWifi(char* brokerUser, char* brokerPass)
     } else {
         LOGGER("Broker connected");
         digitalWrite(GPIO_ERROR, 0);
-    }
-  }
+    }  
 }
 
 byte DatumSend(SensoriandoSensorDatum *datum)
@@ -373,7 +394,7 @@ byte DatumSend(SensoriandoSensorDatum *datum)
     byte res;
 
     switch ( ConnectInUse ) {
-        case ESPNOW:    res = espnow_send(&ConnectEsp, datum);
+        case ESPNOW:      res = espnow_send(&ConnectEsp, datum);
                         break;
         case WIFI:      res = wifi_send(&Broker, datum);
                         break;
@@ -408,6 +429,7 @@ int ReadSensor(long *elapsed)
 void OnSendError(uint8_t* ad)
 {
     LOGGER("OnSendError");
+    digitalWrite(GPIO_ERROR, 1);
     //LOGGER(ConnectEsp.macToStr(ad));
 }
 
@@ -420,6 +442,8 @@ void OnSendDone(uint8_t* ad)
 void OnPairingFinished()
 {
     LOGGER("OnPairingFinished");
+    digitalWrite(GPIO_CONFIG, 0);
+    ConfigInUse = NORMAL;
 }
 
 void OnNewGatewayAddress(uint8_t *ga, String ad)
@@ -434,15 +458,19 @@ void OnNewGatewayAddress(uint8_t *ga, String ad)
     //  Serial.print("[DEBUG] MAC Address: "); Serial.println(ad);
 
     if ( !espnow_writeconf(ad) ) {
-        LOGGER("SPIFFS: Error while write in file");
+        LOGGER("Error while write in file");
     } else {
-        LOGGER("SPIFFS: Write in file");
-
-        ConnectInUse = ESPNOW;
-        //wifi_reset(&ConnectWifi);
+        LOGGER("Write in file");
         delay(DEBOUNCE);
-        ESP.reset();
     }
+}
+
+void OnPaired(uint8_t *ga, String ad)
+{
+//  LOGGER("OnPaired: server %s paired", ad);
+  LOGGER("OnPaired: server paired");
+
+  ConnectEsp.endPairing();
 }
 
 /*
@@ -455,14 +483,6 @@ void OnNewGatewayAddress(uint8_t *ga, String ad)
   {
   LOGGER("OnMessage from %s", (char *)ad);
   LOGGER((char *)message);
-  }
-
-  void OnPaired(uint8_t *ga, String ad)
-  {
-  LOGGER("OnPaired, server %s paired", ad);
-
-  ConnectInUse = ESPNOW;
-  ConnectEsp.endPairing();
   }
 
 */
