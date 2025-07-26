@@ -47,6 +47,7 @@
 //Operation mode
 #define NOSENSOR        0x00    //Random values
 #define ENVIRONMENT     0x01    //Temperature and humidity of air
+#define SOIL            0x02    //Humidity of soil
 
 //Configure module
 #define DEBOUNCE        300
@@ -56,7 +57,12 @@
 #define TRYSEND         3
 
 //Need send this block to compile param
-#define MODULE          ENVIRONMENT
+#ifndef MODULE
+  #pragma message "MODULE is not defined: NOSENSOR"
+  #define MODULE        NOSENSOR
+#else
+  #pragma message "MODULE is defined: " MODULE
+#endif
 
 
 /* 
@@ -74,6 +80,11 @@ int (*sensor_init)(SensoriandoSensorDatum **, char *) = environment_init;
 int (*sensor_read)(SensoriandoSensorDatum **, long *) = environment_read;
 #endif
 
+#if MODULE == SOIL
+#include "src/soil.h" 
+int (*sensor_init)(SensoriandoSensorDatum **, char *) = soil_init;
+int (*sensor_read)(SensoriandoSensorDatum **, long *) = soil_read;
+#endif
 
 /*
  * GlobalVariable
