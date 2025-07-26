@@ -33,7 +33,7 @@
 #define GPIO_DATA       2               //GPIO ESP8266 (NODEMCU pin D4)
 #define GPIO_CONFIG     13              //GPIO ESP8266 (NODEMCU pin D7)
 #define GPIO_SELECT     0               //GPIO ESP8266 (NODEMCU pin D3) 
+#define GPIO_ANALOG     17              //GPIO ESP8266 (NODEMCU pin A0)
 
 
 #endif
-
